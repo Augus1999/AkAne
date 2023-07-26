@@ -1,0 +1,1 @@
+\[|\]|H[e,f,g,s,o]?|L[i,v,a,r,u]|B[e,r,a,i,h,k]?|C[l,a,r,o,u,d,s,n,e,m,f]?|N[e,a,i,b,h,d,o,p]?|O[s,g]?|S[i,c,e,r,n,m,b,g]?|K[r]?|T[i,c,e,a,l,b,h,m,s]|G[a,e,d]|R[b,u,h,e,n,a,f,g]|Yb?|Z[n,r]|P[t,o,d,r,a,u,b,m]?|F[e,r,l,m]?|M[g,n,o,t,c,d]|A[l,r,s,g,u,t,c,m]|I[n,r]?|W|X[e]|E[u,r,s]|U|D[b,s,y]|b|c|n|o|s|p|\(|\)|\.|=|#|-|\+|\\|\/|:|~|@|\?|>>?|\*|\$|\%[0-9]{2}|[0-9]
