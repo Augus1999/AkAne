@@ -96,7 +96,7 @@ with gr.Blocks(title="AkAne") as app:
                     gr.Markdown("Predicted with A<span style='color:#CB4154'>k</span>Ane from MoleculeNet training data.")
                     v1 = gr.Textbox(label="solubility / M")
                     v2 = gr.Textbox(label="solvation energy / kcal/mol")
-                    v3 = gr.Textbox(label="lipophilicity")
+                    v3 = gr.Textbox(label="lipophilicity (logD)")
                 with gr.Tab(label="QM"):
                     gr.Markdown("Predicted with A<span style='color:#CB4154'>k</span>Ane from QM9 training data.")
                     v4 = gr.Textbox(label="HOMO / Hartree")
