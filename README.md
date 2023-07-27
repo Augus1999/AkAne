@@ -6,8 +6,6 @@
 ![torch](https://img.shields.io/badge/torch-2.0-blue?color=708ddd)
 ![black](https://img.shields.io/badge/code%20style-black-black)
 
-## Usage
-
 ## Web APP
 Run `python app.py` to launch the web app locally.
 

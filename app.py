@@ -25,15 +25,34 @@ model9 = Kamome().pretrained(ptk / "qm9/qm9_u.pt").eval().to(device)
 model10 = Kamome().pretrained(ptk / "qm9/qm9_g.pt").eval().to(device)
 model11 = Kamome().pretrained(ptk / "qm9/qm9_h.pt").eval().to(device)
 model12 = Kamome().pretrained(ptk / "qm9/qm9_cv.pt").eval().to(device)
+model13 = Kamome().pretrained(ptk / "photoswitch/e_iso_n.pt").eval().to(device)
+model14 = Kamome().pretrained(ptk / "photoswitch/e_iso_pi.pt").eval().to(device)
+model15 = Kamome().pretrained(ptk / "photoswitch/z_iso_n.pt").eval().to(device)
+model16 = Kamome().pretrained(ptk / "photoswitch/z_iso_pi.pt").eval().to(device)
 
-model13 = AkAne(label_mode="text:23").pretrained(pta / "bind_generate.pt").eval().to(device)
-model14 = AkAne(label_mode="value:2").pretrained(pta / "des_generate.pt").eval().to(device)
+model17 = AkAne(label_mode="text:23").pretrained(pta / "bind_generate.pt").eval().to(device)
+model18 = AkAne(label_mode="value:2").pretrained(pta / "des_generate.pt").eval().to(device)
+
+def _count_iso(mol):
+    counter = []
+    bonds = mol.GetBonds()
+    for bond in bonds:
+        type = int(bond.GetBondType())
+        stereo = int(bond.GetStereo())
+        if type == 2:
+            if stereo == 2 or stereo == 4:
+                counter.append("Z")
+            elif stereo == 3 or stereo == 5:
+                counter.append("E")
+            else:
+                counter.append("any")
+    return set(counter)
 
 @torch.no_grad()
 def process0(smiles: str):
     mol = MolFromSmiles(smiles)
     img = Draw.MolToImage(mol, (500, 500))
-
+    counter = _count_iso(mol)
     mol = gather([smiles2graph(smiles)])
     mol["node"] = mol["node"].to(device)
     mol["edge"] = mol["edge"].to(device)
@@ -50,7 +69,17 @@ def process0(smiles: str):
     v10 = model10(mol)["prediction"].item()
     v11 = model11(mol)["prediction"].item()
     v12 = model12(mol)["prediction"].item()
-    return img, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12
+    if "E" in counter:
+        v13 = model13(mol)["prediction"].item()
+        v14 = model14(mol)["prediction"].item()
+    elif "Z" in counter:
+        v13 = model15(mol)["prediction"].item()
+        v14 = model16(mol)["prediction"].item()
+    elif "any" in counter:
+        v13 = v14 = "please specify the double bond stereochemistry in SMILES."
+    else:
+        v13 = v14 = "n.a."
+    return img, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14
 
 @torch.no_grad()
 def process1(size, file):
@@ -59,7 +88,7 @@ def process1(size, file):
     fasta = data[1]
     label = torch.tensor([protein2vec(fasta)], device=device)
     while True:
-        smiles = model13.generate(int(size), label, False)
+        smiles = model17.generate(int(size), label, False)
         mol = MolFromSmiles(smiles["SMILES"])
         if mol != None:
             break
@@ -72,7 +101,7 @@ def process1(size, file):
 def process2(size, x, mp):
     label = torch.tensor([[float(x), float(mp)]], device=device)
     while True:
-        smiles = model14.generate(int(size), label, False)
+        smiles = model18.generate(int(size), label, False)
         mol = MolFromSmiles(smiles["SMILES"])
         if mol != None:
             break
@@ -97,6 +126,9 @@ with gr.Blocks(title="AkAne") as app:
                     v1 = gr.Textbox(label="solubility / M")
                     v2 = gr.Textbox(label="solvation energy / kcal/mol")
                     v3 = gr.Textbox(label="lipophilicity (logD)")
+                    gr.Markdown("Predicted with A<span style='color:#CB4154'>k</span>Ane from PhotoSwitch training data.")
+                    v13 = gr.Textbox(label="n-π* transition wavelength / nm")
+                    v14 = gr.Textbox(label="π-π* transition wavelength / nm")
                 with gr.Tab(label="QM"):
                     gr.Markdown("Predicted with A<span style='color:#CB4154'>k</span>Ane from QM9 training data.")
                     v4 = gr.Textbox(label="HOMO / Hartree")
@@ -113,7 +145,7 @@ with gr.Blocks(title="AkAne") as app:
             gr.Markdown("*de novo* ligand desiged with A<span style='color:#CB4154'>k</span>Ane from BindingDB training data.")
             with gr.Row():
                 with gr.Column(scale=1):
-                    size1 = gr.Textbox(label="molecule size", placeholder="input size here (generated molecule may have fewer or more number of atoms than this size)")
+                    size1 = gr.Slider(10, 100, value=24, step=1, label="molecule size")
                     file = gr.File(file_types=[".fasta"], label="FASTA sequence")
                     btn1 = gr.Button("RUN", variant="primary")
                     img1 = gr.Image(label="molecule")
@@ -124,15 +156,15 @@ with gr.Blocks(title="AkAne") as app:
             gr.Markdown("*de novo* deep eutective solvent desiged with A<span style='color:#CB4154'>k</span>Ane.")
             with gr.Row():
                 with gr.Column(scale=1):
-                    size2 = gr.Textbox(label="molecule size", placeholder="input size here (generated molecule may have fewer or more number of atoms than this size)")
+                    size2 = gr.Slider(5, 100, value=12, step=1, label="molecule size")
                     x = gr.Slider(0.1, 0.9, label="x(HBA)", value=0.5)
-                    mp = gr.Slider(-120, 300, label="melting point / °C", value=-20)
+                    mp = gr.Slider(-120, 200, label="melting point / °C", value=-20, step=0.2)
                     btn2 = gr.Button("RUN", variant="primary")
                     img2 = gr.Image(label="molecule")
                 with gr.Column(scale=2):
                     smiles2 = gr.Textbox(label="SMILES")
                     chemfig2 = gr.TextArea(label="LATEX ChemFig")
-    btn0.click(fn=process0, inputs=smiles0, outputs=[img0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12])
+    btn0.click(fn=process0, inputs=smiles0, outputs=[img0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14])
     btn1.click(fn=process1, inputs=[size1, file], outputs=[img1, smiles1, chemfig1])
     btn2.click(fn=process2, inputs=[size2, x, mp], outputs=[img2, smiles2, chemfig2])
 
