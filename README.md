@@ -11,3 +11,5 @@ Run `python app.py` to launch the web app locally.
 
 A demo is being hosted on [hugging face Spaces](https://huggingface.co/spaces/suenoomozawa/AkAne).
 
+## Trained models
+You can download trained models from the [release](https://github.com/Augus1999/AkAne/releases).
