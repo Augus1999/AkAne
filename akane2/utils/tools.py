@@ -134,9 +134,9 @@ def train(
                     loss = model.predict_train_step(mol, property)
                 else:
                     y = model(mol)["prediction"]
-                    label_mask = (label != torch.inf).float()
-                    label = label.masked_fill(label == torch.inf, 0)
-                    loss = F.mse_loss(y * label_mask, label, reduction="mean")
+                    label_mask = (property != torch.inf).float()
+                    property = property.masked_fill(property == torch.inf, 0)
+                    loss = F.mse_loss(y * label_mask, property, reduction="mean")
             if mode == "autoencoder":
                 token_input = label["token_input"].to(device)
                 token_label = label["token_label"].to(device)
