@@ -39,12 +39,11 @@ def collate(batch: List) -> Dict[str, Tensor]:
     mol = gather(batch=mol)
     token_input = torch.cat(token_input, dim=0)
     token_label = torch.cat(token_label, dim=0)
-    label_ = {
-        "token_input": token_input,
-        "token_label": token_label,
-    }
+    label_ = {"token_input": token_input, "token_label": token_label}
     if "property" in batch[0]["label"]:
-        property = [i["property"][None, :] for i in label]
+        property = [i["property"] for i in label]
+        max_len = max([len(w) for w in property])
+        property = [F.pad(i, (0, max_len - len(i)), value=0)[None, :] for i in property]
         property = torch.cat(property, dim=0)
         label_["property"] = property
     return {"mol": mol, "label": label_}

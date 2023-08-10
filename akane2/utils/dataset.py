@@ -9,7 +9,7 @@ where mol_dict is a dictionary as {
                                     "edge": edge stste (Tensor),
                                     }
 and label_dict is dictionary as {
-                                  "property": property (Tensor),
+                                  "property": property (Tensor, optional),
                                   "token_input": input tokens (Tensor),
                                   "token_label" label tokens (Tensor),
                                   }.
@@ -24,7 +24,7 @@ import torch
 from torch import Tensor
 from torch.utils.data import Dataset
 from .graph import smiles2graph
-from .token import smiles2vec
+from .token import smiles2vec, protein2vec
 
 valid_dataset_name = ("CMC", "ESOL", "FreeSolv", "Lipo")
 
@@ -34,20 +34,24 @@ class CSVData(Dataset):
         self,
         file: str,
         limit: Optional[int] = None,
+        value_idx: Optional[List[int]] = None,
     ) -> None:
         """
         Dataset stored in CSV file.
 
         :param file: dataset file name <file>
         :param limit: item limit
+        :param value_idx: a list of indices indicating which value to be input
+                          use 'None' for inputting all values
         """
         super().__init__()
         self.data = []
         with open(file, "r") as db:
             data = csv.reader(db)
             self.data = list(data)
+        self.value_idx = value_idx
         self.smiles_idx, self.value_idx = [], []
-        self.ratio_idx, self.temp_idx = None, None
+        self.ratio_idx, self.temp_idx, self.seq_idx = None, None, None
         for key, i in enumerate(self.data[0]):
             i = i.lower()
             if i == "smiles":
@@ -58,6 +62,8 @@ class CSVData(Dataset):
                 self.ratio_idx = key
             if i == "temperature":
                 self.temp_idx = key
+            if i == "seq":
+                self.seq_idx = key
         self.data = self.data[1:]
         self.data = self.data[:limit]
 
@@ -75,6 +81,10 @@ class CSVData(Dataset):
             float(d[idx]) if d[idx].strip() != "" else torch.inf
             for idx in self.value_idx
         ]
+        if self.value_idx:
+            values = [values[i] for i in self.value_idx]
+        if self.seq_idx:
+            values = protein2vec(d[self.seq_idx])
         if self.ratio_idx:
             if d[self.ratio_idx] != "":
                 rs = d[self.ratio_idx].split(":")
@@ -84,16 +94,13 @@ class CSVData(Dataset):
             if d[self.temp_idx] != "":
                 beta = exp(-273.15 / float(d[self.temp_idx]))
         graph = smiles2graph(smiles=smiles, alphas=alphas, beta=beta)
-        property = torch.tensor(values, dtype=torch.float32)
         token = smiles2vec(smiles4vec)
         # start token: <start> = 1; end token: <esc> = 2
         token_input = torch.tensor([1] + token, dtype=torch.long)
         token_label = torch.tensor(token + [2], dtype=torch.long)
-        label = {
-            "property": property,
-            "token_input": token_input,
-            "token_label": token_label,
-        }
+        label = {"token_input": token_input, "token_label": token_label}
+        if len(values) != 0:
+            label["property"] = torch.tensor(values, dtype=torch.float32)
         return {"mol": graph, "label": label}
 
 

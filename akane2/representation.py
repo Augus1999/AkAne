@@ -43,7 +43,9 @@ class AkAne(nn.Module):
         :param n_encoder: number of encoder layers
         :param n_decoder: number of decoder layers
         :param n_readout: number of read-out layers
+        :param n_diffuse: number of DiT layers
         :param num_task: number of task output
+        :param label_mode: label mode chosen from 'value:x' and 'text:x'
         """
         super().__init__()
         self.encoder = Encoder(channel, n_encoder, num_head, temperature_coeff)
