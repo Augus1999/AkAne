@@ -112,6 +112,8 @@ class Interaction(nn.Module):
     ) -> None:
         """
         Interaction block.
+        (This is the original design.
+        The encoder block in `../encoder.py` is adapted from this code.)
 
         :param hidden_dim: hidden layer features
         :param num_head: number of heads

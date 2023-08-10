@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+# Author: Nianze A. TAO (Omozawa SUENO)
+"""
+Tokenise SMILES string and protein sequences
+"""
 import re
 from pathlib import Path
 from typing import List

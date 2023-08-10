@@ -158,12 +158,12 @@ def train(
                         "encoder": model.encoder.state_dict(),
                         "decoder": model.decoder.state_dict(),
                     }
+                    if mode == "predict":
+                        nn["readout"] = model.readout.state_dict()
+                    if mode == "diffusion":
+                        nn["dit"] = model.dit.state_dict()
                 else:
                     nn = model.state_dict()
-                if mode == "predict":
-                    nn["readout"] = model.readout.state_dict()
-                if mode == "diffusion":
-                    nn["dit"] = model.dit.state_dict()
                 state = {
                     "nn": nn,
                     "opt": optimizer.state_dict(),
@@ -177,12 +177,12 @@ def train(
             "encoder": model.encoder.state_dict(),
             "decoder": model.decoder.state_dict(),
         }
+        if mode == "predict":
+            nn["readout"] = model.readout.state_dict()
+        if mode == "diffusion":
+            nn["dit"] = model.dit.state_dict()
     else:
         nn = model.state_dict()
-    if mode == "predict":
-        nn["readout"] = model.readout.state_dict()
-    if mode == "diffusion":
-        nn["dit"] = model.dit.state_dict()
     torch.save({"nn": nn}, Path(work_dir) / "trained.pt")
     logging.info("saved state!")
     logging.info("finished")

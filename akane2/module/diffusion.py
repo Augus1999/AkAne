@@ -176,6 +176,12 @@ class DiT(nn.Module):
     ) -> None:
         """
         Scalable Diffusion Transformer.
+
+        :param channel: hidden layer features
+        :param n_layer: number of DiT layers
+        :param num_head: number of attention head(s)
+        :param temperature_coeff: attention temperature coefficient
+        :param label_mode: label mode chosen from 'value:x' and 'text:x'
         """
         super().__init__()
         mode, max_len = label_mode.split(":")
