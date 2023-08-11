@@ -34,14 +34,14 @@ class CSVData(Dataset):
         self,
         file: str,
         limit: Optional[int] = None,
-        value_idx: Optional[List[int]] = None,
+        label_idx: Optional[List[int]] = None,
     ) -> None:
         """
         Dataset stored in CSV file.
 
         :param file: dataset file name <file>
         :param limit: item limit
-        :param value_idx: a list of indices indicating which value to be input
+        :param label_idx: a list of indices indicating which value to be input
                           use 'None' for inputting all values
         """
         super().__init__()
@@ -49,7 +49,7 @@ class CSVData(Dataset):
         with open(file, "r") as db:
             data = csv.reader(db)
             self.data = list(data)
-        self.value_idx = value_idx
+        self.label_idx = label_idx
         self.smiles_idx, self.value_idx = [], []
         self.ratio_idx, self.temp_idx, self.seq_idx = None, None, None
         for key, i in enumerate(self.data[0]):
@@ -81,8 +81,8 @@ class CSVData(Dataset):
             float(d[idx]) if d[idx].strip() != "" else torch.inf
             for idx in self.value_idx
         ]
-        if self.value_idx:
-            values = [values[i] for i in self.value_idx]
+        if self.label_idx:
+            values = [values[i] for i in self.label_idx]
         if self.seq_idx:
             values = protein2vec(d[self.seq_idx])
         if self.ratio_idx:

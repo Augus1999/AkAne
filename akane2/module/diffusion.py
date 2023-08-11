@@ -333,7 +333,7 @@ class GaussianDiffusion:
 
     # denoise: reverse diffusion
     @torch.no_grad()
-    def p_sample_loop(self, model, x, x_mask, y, progress_bar: bool = True):
+    def sample(self, model, x, x_mask, y, progress_bar: bool = True):
         # start from pure noise
         if not progress_bar:
             tqdm = lambda x, **_: x
@@ -344,11 +344,6 @@ class GaussianDiffusion:
         ):
             x = self.p_sample(model, x, torch.tensor([[i]], device=x.device), y, x_mask)
         return x
-
-    # sample new latent vectors
-    @torch.no_grad()
-    def sample(self, model, x, x_mask, y, progress_bar: bool = True):
-        return self.p_sample_loop(model, x, x_mask, y, progress_bar)
 
     # compute train losses
     def train_losses(self, model, x_start, t, y, x_mask):

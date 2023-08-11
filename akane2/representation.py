@@ -95,6 +95,22 @@ class AkAne(nn.Module):
         )  # masked the unlabelled position(s)
         return F.mse_loss(y * label_mask, label, reduction="mean")
 
+    def classify_train_step(self, mol: Dict[str, Tensor], label: Tensor) -> Tensor:
+        """
+        :param mol: molecule = {
+            "node": node matrix;  shape: (n_b, n_a, n_f)
+            "edge": edge matrix;  shape: (n_b, n_a, n_a, n_f)
+        }
+        :param label: property label(s);  shape: (n_b, 1)
+        :return: MSE loss
+        """
+        self.encoder.requires_grad_(False)
+        self.decoder.requires_grad_(False)
+        self.dit.requires_grad_(False)
+        h, _ = self.encoder(mol, True)
+        y = self.readout(h)
+        return F.cross_entropy(y, label.reshape(-1))
+
     def diffusion_train_step(self, mol: Dict[str, Tensor], label: Tensor) -> Tensor:
         """
         :param mol: molecule = {
@@ -154,7 +170,9 @@ class AkAne(nn.Module):
             smiles.append(s)
 
     @torch.no_grad()
-    def generate(self, size: int, label: Tensor, progress_bar: bool = True) -> Dict[str, str]:
+    def generate(
+        self, size: int, label: Tensor, progress_bar: bool = True
+    ) -> Dict[str, str]:
         """
         Generate molecule(s) from noise.
 

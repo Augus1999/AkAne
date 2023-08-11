@@ -15,6 +15,7 @@ import torch.optim as op
 import torch.nn.functional as F
 from torch import Tensor
 from torch.utils.data import DataLoader
+from sklearn.metrics import roc_auc_score, auc, precision_recall_curve
 from .graph import gather
 
 
@@ -65,7 +66,8 @@ def train(
 
     :param model: model for training
     :param data: training data
-    :param mode: training mode selected from 'autoencoder', 'predict', and 'diffusion'
+    :param mode: training mode selected from
+                 'autoencoder', 'predict', 'classify', and 'diffusion'
     :param n_epochs: training epochs size
     :param batch_size: batch size
     :param load: load from an existence state file <file>
@@ -74,7 +76,7 @@ def train(
     :param save_every: store checkpoint every 'save_every' epochs
     :return: None
     """
-    assert mode in ("autoencoder", "predict", "diffusion")
+    assert mode in ("autoencoder", "predict", "classify", "diffusion")
     if os.path.exists(str(log_dir)):
         with open(log_dir, mode="r+", encoding="utf-8") as f:
             f.truncate()
@@ -136,6 +138,13 @@ def train(
                     label_mask = (property != torch.inf).float()
                     property = property.masked_fill(property == torch.inf, 0)
                     loss = F.mse_loss(y * label_mask, property, reduction="mean")
+            if mode == "classify":
+                property = label["property"].to(device, torch.long)
+                if hasattr(model, "classify_train_step"):
+                    loss = model.classify_train_step(mol, property)
+                else:
+                    y = model(mol)["prediction"]
+                    loss = F.cross_entropy(y, property.reshape(-1))
             if mode == "autoencoder":
                 token_input = label["token_input"].to(device)
                 token_label = label["token_label"].to(device)
@@ -157,7 +166,7 @@ def train(
                         "encoder": model.encoder.state_dict(),
                         "decoder": model.decoder.state_dict(),
                     }
-                    if mode == "predict":
+                    if mode == "predict" or mode == "classify":
                         nn["readout"] = model.readout.state_dict()
                     if mode == "diffusion":
                         nn["dit"] = model.dit.state_dict()
@@ -176,7 +185,7 @@ def train(
             "encoder": model.encoder.state_dict(),
             "decoder": model.decoder.state_dict(),
         }
-        if mode == "predict":
+        if mode == "predict" or mode == "classify":
             nn["readout"] = model.readout.state_dict()
         if mode == "diffusion":
             nn["dit"] = model.dit.state_dict()
@@ -190,6 +199,7 @@ def train(
 def test(
     model: nn.Module,
     data: Generator,
+    mode: str = "regression",
     load: Optional[str] = None,
     log_dir: Optional[str] = None,
 ) -> Dict[str, float]:
@@ -198,6 +208,7 @@ def test(
 
     :param model: model for testing
     :param data: data
+    :param mode: testing mode chosen from 'regression' and 'classification'
     :param load: load from an existence state file <file>
     :param log_dir: where to store log file <file>
     :return: MAE & RMSE & MAPE of property
@@ -216,33 +227,50 @@ def test(
         model = model.pretrained(file=load)
     model = model.to(device=device).eval()
     logging.info(f'loaded state from "{load}"')
-    tae, tse, tape = 0, 0, 0
-    scale = 0
+    tae, tse, tape, scale = 0, 0, 0, 0
+    predict_cls, label_cls = [], []
     for d in loader:
         mol, label = d["mol"], d["label"]
         for i in mol:
             mol[i] = mol[i].to(device)
-        for j in label:
-            label[j] = label[j].to(device)
         property = label["property"]
-        label_mask = (property != torch.inf).float()
-        property = property.masked_fill(property == torch.inf, 0)
-        if hasattr(model, "inference"):
-            out_property = model.inference(mol)["prediction"] * label_mask
-        else:
-            out_property = model(mol)["prediction"] * label_mask
-        l1 = (out_property - property).abs().sum(dim=0).detach()
-        l2 = (out_property - property).pow(2).sum(dim=0).detach()
-        l3 = ((out_property - property).abs() / property).sum(dim=0).detach()
-        tae += l1.to("cpu").numpy()
-        tse += l2.to("cpu").numpy()
-        tape += l3.to("cpu").numpy()
-        scale += label_mask.sum(dim=0).detach().to("cpu").numpy()
-    MAE = list(tae / scale)
-    RMSE = list((tse / scale) ** 0.5)
-    MAPE = list(100 * tape / scale)
-    logging.info(f"MAE: {MAE}, RMSE: {RMSE}, MAPE: {MAPE}")
-    return {"MAE": MAE, "RMSE": RMSE, "MAPE": MAPE}
+        if mode == "regression":
+            property = property.to(device)
+            label_mask = (property != torch.inf).float()
+            property = property.masked_fill(property == torch.inf, 0)
+            if hasattr(model, "inference"):
+                out_property = model.inference(mol)["prediction"] * label_mask
+            else:
+                out_property = model(mol)["prediction"] * label_mask
+            l1 = (out_property - property).abs().sum(dim=0).detach()
+            l2 = (out_property - property).pow(2).sum(dim=0).detach()
+            l3 = ((out_property - property).abs() / property).sum(dim=0).detach()
+            tae += l1.to("cpu").numpy()
+            tse += l2.to("cpu").numpy()
+            tape += l3.to("cpu").numpy()
+            scale += label_mask.sum(dim=0).detach().to("cpu").numpy()
+        if mode == "classification":
+            if hasattr(model, "inference"):
+                out_property = model.inference(mol)["prediction"]
+            else:
+                out_property = model(mol)["prediction"]
+            out_property = F.softmax(out_property, dim=-1)
+            predict_cls.append(out_property.detach().to("cpu"))
+            label_cls.append(property.flatten())
+    if mode == "regression":
+        MAE = list(tae / scale)
+        RMSE = list((tse / scale) ** 0.5)
+        MAPE = list(100 * tape / scale)
+        logging.info(f"MAE: {MAE}, RMSE: {RMSE}, MAPE: {MAPE}")
+        return {"MAE": MAE, "RMSE": RMSE, "MAPE": MAPE}
+    if mode == "classification":
+        predict_cls = torch.cat(predict_cls, dim=0).numpy()
+        label_cls = torch.cat(label_cls, dim=-1).numpy()
+        roc_auc = roc_auc_score(label_cls, predict_cls[:, 1])
+        precision, recall, _ = precision_recall_curve(label_cls, predict_cls[:, 1])
+        prc_auc = auc(recall, precision)
+        logging.info(f"ROC-AUC: {roc_auc}, PRC-AUC: {prc_auc}")
+        return {"ROC-AUC": roc_auc, "PRC-AUC": prc_auc}
 
 
 def find_recent_checkpoint(workdir: str) -> Optional[str]:
