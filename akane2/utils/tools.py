@@ -196,6 +196,7 @@ def train(
     logging.info("finished")
 
 
+@torch.no_grad()
 def test(
     model: nn.Module,
     data: Generator,
