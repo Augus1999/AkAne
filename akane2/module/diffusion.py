@@ -40,6 +40,19 @@ class ValueLabelEmbed(nn.Module):
         return self.embed(label)[:, None, :]
 
 
+class ClassLabelEmbed(nn.Module):
+    def __init__(self, channel: int = 512, max_len: int = 2) -> None:
+        super().__init__()
+        self.embed = nn.Embedding(max_len, channel)
+
+    def forward(self, label: Tensor) -> Tensor:
+        """
+        :param label: label tokens;  shape: (n_b, 1)
+        :return: embedded labels;    shape: (n_b, 1, n_f)
+        """
+        return self.embed(label)
+
+
 class TextLabelEmbed(nn.Module):
     def __init__(self, channel: int = 512, max_len: int = 23) -> None:
         super().__init__()
@@ -67,7 +80,7 @@ class TextLabelEmbed(nn.Module):
 #################################### DiT ###########################################
 
 
-def modulate(x, shift, scale):
+def modulate(x: Tensor, shift: Tensor, scale: Tensor) -> Tensor:
     return x * (1 + scale) + shift
 
 
@@ -181,7 +194,7 @@ class DiT(nn.Module):
         :param n_layer: number of DiT layers
         :param num_head: number of attention head(s)
         :param temperature_coeff: attention temperature coefficient
-        :param label_mode: label mode chosen from 'value:x' and 'text:x'
+        :param label_mode: label mode chosen from 'value:x', 'class:x' and 'text:x'
         """
         super().__init__()
         mode, max_len = label_mode.split(":")
@@ -189,6 +202,8 @@ class DiT(nn.Module):
             self.label = ValueLabelEmbed(channel, int(max_len))
         elif mode == "text":
             self.label = TextLabelEmbed(channel, int(max_len))
+        elif mode == "class":
+            self.label = ClassLabelEmbed(channel, int(max_len))
         else:
             raise NotImplementedError
         self.time = TimeEmbedding(channel)
