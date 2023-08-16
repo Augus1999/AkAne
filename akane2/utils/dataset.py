@@ -20,7 +20,6 @@ from typing import Optional, List, Dict, Union
 import torch
 from torch import Tensor
 from torch.utils.data import Dataset
-from rdkit.Chem import MolFromSmiles
 from rdkit.Chem.Scaffolds.MurckoScaffold import MurckoScaffoldSmiles
 from .graph import smiles2graph
 from .token import smiles2vec, protein2vec
@@ -109,7 +108,7 @@ def split_dataset(file: str, split_ratio: float = 0.8, method: str = "random") -
         data = list(csv.reader(f))
     header = data[0]
     raw_data = data[1:]
-    smiles_idx = []
+    smiles_idx = []  # only first index will be used
     for key, h in enumerate(header):
         if h == "smiles":
             smiles_idx.append(key)
@@ -122,9 +121,7 @@ def split_dataset(file: str, split_ratio: float = 0.8, method: str = "random") -
         scaffolds = {}
         for key, d in enumerate(raw_data):
             # compute Bemis-Murcko scaffold
-            smiles = d[smiles_idx[0]]
-            mol = MolFromSmiles(smiles)
-            scaffold = MurckoScaffoldSmiles(mol)
+            scaffold = MurckoScaffoldSmiles(d[smiles_idx[0]])
             if scaffold in scaffolds:
                 scaffolds[scaffold].append(key)
             else:
