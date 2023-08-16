@@ -98,7 +98,17 @@ def train(
     )
     train_size = len(loader)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = model.to(device=device).train()
+    model.train()
+    if hasattr(model, "encoder"):
+        model.encoder.to(device)
+        if mode == "autoencoder":
+            model.decoder.to(device)
+        if mode == "predict" or mode == "classify":
+            model.readout.to(device)
+        if mode == "diffusion":
+            model.dit.to(device)
+    else:
+        model.to(device)
     optimizer = op.Adam(model.parameters(), lr=1e-6, amsgrad=False)
     scheduler = op.lr_scheduler.CyclicLR(
         optimizer=optimizer,
@@ -226,7 +236,12 @@ def test(
     logging.info(f"loaded {data_size} data in the dataset")
     if load:
         model = model.pretrained(file=load)
-    model = model.to(device=device).eval()
+    model.eval()
+    if hasattr(model, "encoder"):
+        model.encoder.to(device)
+        model.readout.to(device)
+    else:
+        model.to(device)
     logging.info(f'loaded state from "{load}"')
     tae, tse, tape, scale = 0, 0, 0, 0
     predict_cls, label_cls = [], []

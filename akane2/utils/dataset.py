@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 # Author: Nianze A. TAO (Omozawa SUENO)
 """
-DataSets classes
-The item returned from these classes is a python 
-dictionary: {"mol": mol_dict, "label": label_dict},
+DataSets class
+The item returned is a python dictionary: {"mol": mol_dict, "label": label_dict},
 where mol_dict is a dictionary as {
                                     "node": node state (Tensor), 
                                     "edge": edge stste (Tensor),
@@ -14,19 +13,17 @@ and label_dict is dictionary as {
                                   "token_label" label tokens (Tensor),
                                   }.
 """
-import os
 import csv
-import glob
+import random
 from math import exp
-from pathlib import Path
-from typing import Optional, List, Dict, Union, Generator
+from typing import Optional, List, Dict, Union
 import torch
 from torch import Tensor
 from torch.utils.data import Dataset
+from rdkit.Chem import MolFromSmiles
+from rdkit.Chem.Scaffolds.MurckoScaffold import MurckoScaffoldSmiles
 from .graph import smiles2graph
 from .token import smiles2vec, protein2vec
-
-valid_dataset_name = ("CMC", "ESOL", "FreeSolv", "Lipo")
 
 
 class CSVData(Dataset):
@@ -104,79 +101,44 @@ class CSVData(Dataset):
         return {"mol": graph, "label": label}
 
 
-class DataSet:
-    """
-    Import dataset. \n
-    Recently support CMC, FreeSolv, Lipo and ESOL datasets.
-    """
-
-    def __init__(
-        self,
-        name: str,
-        dir_: str,
-        mode: str = "train",
-        limit: Optional[int] = None,
-    ) -> None:
-        """
-        Check the state of dataset.
-
-        :param name: dataset name
-        :param dir: where the dataset locates <path>
-        :param mode: mode; "train" or "test"
-        :param limit: item limit
-        """
-        assert (
-            name in valid_dataset_name
-        ), f"keyword 'name' should be one of {valid_dataset_name}"
-        self.name = name.split(".")[0]
-        assert mode in ("train", "test"), "invalid mode..."
-        self.dir = Path(dir_)
-        self.mode = mode
-        self.limit = limit
-        self._check()
-
-    @property
-    def _dataset(self) -> Dataset:
-        """
-        Return the required dataset class.
-        """
-        dataset = {
-            "CMC": CSVData,
-            "ESOL": CSVData,
-            "FreeSolv": CSVData,
-            "Lipo": CSVData,
-        }
-        return dataset[self.name]
-
-    def _check(self) -> bool:
-        """
-        Check whether all required files exist.
-        """
-        if self.name in ("CMC", "ESOL", "FreeSolv", "Lipo"):
-            d_files = list(glob.glob(str(self.dir / r"*.csv")))
-            d_files = set([os.path.basename(i) for i in d_files])
-            valid_files = {
-                self.name.lower() + "_train.csv",
-                self.name.lower() + "_test.csv",
-            }
-            if not valid_files & d_files == valid_files:
-                raise FileNotFoundError(
-                    f"No dataset was found under directory '{self.dir}'."
-                )
-
-    @property
-    def data(self) -> Generator:
-        """
-        Return data from dataset.
-        """
-        if self.name in ("CMC", "ESOL", "FreeSolv", "Lipo"):
-            file_names = {
-                "train": f"{self.name.lower()}_train.csv",
-                "test": f"{self.name.lower()}_test.csv",
-            }
-            file_name = file_names[self.mode]
-        dataset = self._dataset(
-            file=self.dir / file_name,
-            limit=self.limit,
-        )
-        return dataset
+def split_dataset(file: str, split_ratio: float = 0.8, method: str = "random") -> None:
+    assert file.endswith(".csv")
+    assert 0 < split_ratio < 1
+    assert method in ("random", "scaffold")
+    with open(file, "r") as f:
+        data = list(csv.reader(f))
+    header = data[0]
+    raw_data = data[1:]
+    smiles_idx = []
+    for key, h in enumerate(header):
+        if h == "smiles":
+            smiles_idx.append(key)
+    assert len(smiles_idx) > 0
+    split_idx = int(len(raw_data) * split_ratio)
+    if method == "random":
+        random.shuffle(raw_data)
+        train_set, test_set = raw_data[:split_idx], raw_data[split_idx:]
+    if method == "scaffold":
+        scaffolds = {}
+        for key, d in enumerate(raw_data):
+            # compute Bemis-Murcko scaffold
+            smiles = d[smiles_idx[0]]
+            mol = MolFromSmiles(smiles)
+            scaffold = MurckoScaffoldSmiles(mol)
+            if scaffold in scaffolds:
+                scaffolds[scaffold].append(key)
+            else:
+                scaffolds[scaffold] = [key]
+        scaffolds = {key: sorted(value) for key, value in scaffolds.items()}
+        train_set, test_set = [], []
+        for idxs in scaffolds.values():
+            if len(train_set) + len(idxs) > split_idx:
+                test_set += [raw_data[i] for i in idxs]
+            else:
+                train_set += [raw_data[i] for i in idxs]
+    with open(file.replace(".csv", "_train.csv"), "w", newline="") as ftr:
+        writer = csv.writer(ftr)
+        writer.writerows([header] + train_set)
+    with open(file.replace(".csv", "_test.csv"), "w", newline="") as fte:
+        writer = csv.writer(fte)
+        writer.writerows([header] + test_set)

@@ -50,7 +50,7 @@ class ClassLabelEmbed(nn.Module):
         :param label: label tokens;  shape: (n_b, 1)
         :return: embedded labels;    shape: (n_b, 1, n_f)
         """
-        return self.embed(label)
+        return self.embed(label.to(torch.long))
 
 
 class TextLabelEmbed(nn.Module):
