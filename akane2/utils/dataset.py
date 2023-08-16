@@ -101,6 +101,14 @@ class CSVData(Dataset):
 
 
 def split_dataset(file: str, split_ratio: float = 0.8, method: str = "random") -> None:
+    """
+    Split a dataset.
+
+    :param file: dataset file <file>
+    :param split_ratio: traing-testing ratio from 0 to 1
+    :param method: chosen from 'random' and 'scaffold'
+    :return: None
+    """
     assert file.endswith(".csv")
     assert 0 < split_ratio < 1
     assert method in ("random", "scaffold")
