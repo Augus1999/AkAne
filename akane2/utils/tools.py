@@ -253,14 +253,14 @@ def test(
         if mode == "regression":
             property = property.to(device)
             label_mask = (property != torch.inf).float()
-            property = property.masked_fill(property == torch.inf, 0)
+            property_ = property.masked_fill(property == torch.inf, 0)
             if hasattr(model, "inference"):
                 out_property = model.inference(mol)["prediction"] * label_mask
             else:
                 out_property = model(mol)["prediction"] * label_mask
-            l1 = (out_property - property).abs().sum(dim=0).detach()
-            l2 = (out_property - property).pow(2).sum(dim=0).detach()
-            l3 = ((out_property - property).abs() / property).sum(dim=0).detach()
+            l1 = (out_property - property_).abs().sum(dim=0).detach()
+            l2 = (out_property - property_).pow(2).sum(dim=0).detach()
+            l3 = ((out_property - property_).abs() / property).sum(dim=0).detach()
             tae += l1.to("cpu").numpy()
             tse += l2.to("cpu").numpy()
             tape += l3.to("cpu").numpy()
