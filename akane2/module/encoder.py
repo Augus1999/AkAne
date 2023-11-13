@@ -137,9 +137,9 @@ class Encoder(nn.Module):
         )
         self.mu = nn.Linear(channel, channel, False)
         self.sigma = nn.Linear(channel, channel, False)
-        self.kl = 0
+        self.kl = torch.empty((1, 1))
 
-    def forward(self, mol: Dict[str, Tensor], skip_kl: bool = False) -> Tuple[Tensor]:
+    def forward(self, mol: Dict[str, Tensor], skip_kl: bool = False) -> Tuple[Tensor, Tensor]:
         """
         :param mol: molecule = {
             "node: node matrix;   shape: (n_b, n_a, n_f)

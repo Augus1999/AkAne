@@ -170,7 +170,7 @@ class Decoder(nn.Module):
         )
         self.out = nn.Linear(channel, n_vocab)
 
-    def forward(self, x: Tensor, y: Tensor, y_mask: Tensor) -> Tuple[Tensor]:
+    def forward(self, x: Tensor, y: Tensor, y_mask: Tensor) -> Tuple[Tensor, Tensor]:
         """
         :param x: input tokens;                              shape: (n_b, n_t)
         :param y: node representation from encoder;          shape: (n_b, n_a, n_f)

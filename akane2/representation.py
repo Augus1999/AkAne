@@ -294,7 +294,7 @@ class Kamome(nn.Module):
                 attn_matrix_m,
                 return_attn_matrix,
             )
-            if return_attn_matrix:
+            if attn is not None:
                 attns.append(attn)
         y = h.sum(dim=-2)  # sum pooling
         y = self.readout(y)

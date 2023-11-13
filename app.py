@@ -10,6 +10,7 @@ from rdkit.Chem import Draw, MolFromSmiles
 from mol2chemfigPy3 import mol2chemfig
 import gradio as gr
 import torch
+from torch.jit import script
 from akane2.representation import Kamome, AkAne
 from akane2.utils.graph import smiles2graph, gather
 from akane2.utils.token import protein2vec
@@ -18,31 +19,25 @@ ptk = Path(__file__).parent / "model_kamome"
 pta = Path(__file__).parent / "model_akane"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model1 = Kamome().pretrained(ptk / "moleculenet/esol.pt").eval().to(device)
-model2 = (
-    Kamome(num_head=2).pretrained(ptk / "moleculenet/freesolv.pt").eval().to(device)
-)
-model3 = Kamome().pretrained(ptk / "moleculenet/lipo.pt").eval().to(device)
-model4 = Kamome().pretrained(ptk / "qm9/qm9_homo.pt").eval().to(device)
-model5 = Kamome().pretrained(ptk / "qm9/qm9_lumo.pt").eval().to(device)
-model6 = Kamome().pretrained(ptk / "qm9/qm9_gap.pt").eval().to(device)
-model7 = Kamome().pretrained(ptk / "qm9/qm9_zpve.pt").eval().to(device)
-model8 = Kamome().pretrained(ptk / "qm9/qm9_u0.pt").eval().to(device)
-model9 = Kamome().pretrained(ptk / "qm9/qm9_u.pt").eval().to(device)
-model10 = Kamome().pretrained(ptk / "qm9/qm9_g.pt").eval().to(device)
-model11 = Kamome().pretrained(ptk / "qm9/qm9_h.pt").eval().to(device)
-model12 = Kamome().pretrained(ptk / "qm9/qm9_cv.pt").eval().to(device)
-model13 = Kamome().pretrained(ptk / "photoswitch/e_iso_n.pt").eval().to(device)
-model14 = Kamome().pretrained(ptk / "photoswitch/e_iso_pi.pt").eval().to(device)
-model15 = Kamome().pretrained(ptk / "photoswitch/z_iso_n.pt").eval().to(device)
-model16 = Kamome().pretrained(ptk / "photoswitch/z_iso_pi.pt").eval().to(device)
+model1 = script(Kamome().pretrained(ptk / "moleculenet/esol.pt").eval().to(device))
+model2 = script(Kamome(num_head=2).pretrained(ptk / "moleculenet/freesolv.pt").eval().to(device))
+model3 = script(Kamome().pretrained(ptk / "moleculenet/lipo.pt").eval().to(device))
+model4 = script(Kamome().pretrained(ptk / "qm9/qm9_homo.pt").eval().to(device))
+model5 = script(Kamome().pretrained(ptk / "qm9/qm9_lumo.pt").eval().to(device))
+model6 = script(Kamome().pretrained(ptk / "qm9/qm9_gap.pt").eval().to(device))
+model7 = script(Kamome().pretrained(ptk / "qm9/qm9_zpve.pt").eval().to(device))
+model8 = script(Kamome().pretrained(ptk / "qm9/qm9_u0.pt").eval().to(device))
+model9 = script(Kamome().pretrained(ptk / "qm9/qm9_u.pt").eval().to(device))
+model10 = script(Kamome().pretrained(ptk / "qm9/qm9_g.pt").eval().to(device))
+model11 = script(Kamome().pretrained(ptk / "qm9/qm9_h.pt").eval().to(device))
+model12 = script(Kamome().pretrained(ptk / "qm9/qm9_cv.pt").eval().to(device))
+model13 = script(Kamome().pretrained(ptk / "photoswitch/e_iso_n.pt").eval().to(device))
+model14 = script(Kamome().pretrained(ptk / "photoswitch/e_iso_pi.pt").eval().to(device))
+model15 = script(Kamome().pretrained(ptk / "photoswitch/z_iso_n.pt").eval().to(device))
+model16 = script(Kamome().pretrained(ptk / "photoswitch/z_iso_pi.pt").eval().to(device))
 
-model17 = (
-    AkAne(label_mode="text:23").pretrained(pta / "bind_generate.pt").eval().to(device)
-)
-model18 = (
-    AkAne(label_mode="value:2").pretrained(pta / "des_generate.pt").eval().to(device)
-)
+model17 = AkAne(label_mode="text:23").pretrained(pta / "bind_generate.pt").eval().to(device)
+model18 = AkAne(label_mode="value:2").pretrained(pta / "des_generate.pt").eval().to(device)
 
 
 def _count_iso(mol):
