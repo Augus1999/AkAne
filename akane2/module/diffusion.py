@@ -3,11 +3,11 @@
 """
 Akane diffusion modules
 """
+from typing import Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-from tqdm import tqdm as PB
 
 
 class TimeEmbedding(nn.Module):
@@ -153,7 +153,7 @@ class DiTBlock(nn.Module):
 
 
 class FinalLayer(nn.Module):
-    def __init__(self, channel: int = 512):
+    def __init__(self, channel: int = 512) -> None:
         """
         The final layer of DiT.
 
@@ -225,13 +225,14 @@ class DiT(nn.Module):
 ################################### diffusion method ########################################
 
 
-class GaussianDiffusion:
-    def __init__(self, timesteps: int = 1000):
+class GaussianDiffusion(nn.Module):
+    def __init__(self, timesteps: int = 1000) -> None:
+        super().__init__()
         self.timesteps = timesteps
         self.betas = self.linear_beta_schedule()
 
         self.alphas = 1 - self.betas
-        self.alphas_cumprod = torch.cumprod(self.alphas, axis=0)
+        self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)
         self.alphas_cumprod_prev = F.pad(self.alphas_cumprod[:-1], (1, 0), value=1.0)
 
         # calculations for diffusion q(x_t | x_{t-1}) and others
@@ -261,6 +262,9 @@ class GaussianDiffusion:
             * torch.sqrt(self.alphas)
             / (1.0 - self.alphas_cumprod)
         )
+        self.reversed_t_range = torch.flip(
+            torch.linspace(0, timesteps - 1, timesteps, dtype=torch.int64), (0,)
+        )
 
     def linear_beta_schedule(self) -> Tensor:
         """
@@ -272,101 +276,92 @@ class GaussianDiffusion:
         return torch.linspace(beta_start, beta_end, self.timesteps, dtype=torch.float32)
 
     # get the param of given timestep t
-    def _extract(self, a, t, x_shape):
+    def _extract(self, a: Tensor, t: Tensor) -> Tensor:
         batch_size = t.shape[0]
         out = a.to(t.device).gather(0, t).float()
-        out = out.reshape(batch_size, *((1,) * (len(x_shape) - 1)))
+        out = out.reshape(batch_size, 1, 1)
         return out
 
     # forward diffusion (using the nice property): q(x_t | x_0)
-    def q_sample(self, x_start, t, noise):
-        sqrt_alphas_cumprod_t = self._extract(
-            self.sqrt_alphas_cumprod, t, x_start.shape
-        )
+    def q_sample(self, x_start: Tensor, t: Tensor, noise: Tensor) -> Tensor:
+        sqrt_alphas_cumprod_t = self._extract(self.sqrt_alphas_cumprod, t)
         sqrt_one_minus_alphas_cumprod_t = self._extract(
-            self.sqrt_one_minus_alphas_cumprod, t, x_start.shape
+            self.sqrt_one_minus_alphas_cumprod, t
         )
-
         return sqrt_alphas_cumprod_t * x_start + sqrt_one_minus_alphas_cumprod_t * noise
 
     # Get the mean and variance of q(x_t | x_0).
-    def q_mean_variance(self, x_start, t):
-        mean = self._extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
-        variance = self._extract(1.0 - self.alphas_cumprod, t, x_start.shape)
-        log_variance = self._extract(
-            self.log_one_minus_alphas_cumprod, t, x_start.shape
-        )
+    def q_mean_variance(
+        self, x_start: Tensor, t: Tensor
+    ) -> Tuple[Tensor, Tensor, Tensor]:
+        mean = self._extract(self.sqrt_alphas_cumprod, t) * x_start
+        variance = self._extract(1.0 - self.alphas_cumprod, t)
+        log_variance = self._extract(self.log_one_minus_alphas_cumprod, t)
         return mean, variance, log_variance
 
     # Compute the mean and variance of the diffusion posterior: q(x_{t-1} | x_t, x_0)
-    def q_posterior_mean_variance(self, x_start, x_t, t):
+    def q_posterior_mean_variance(
+        self, x_start: Tensor, x_t: Tensor, t: Tensor
+    ) -> Tuple[Tensor, Tensor, Tensor]:
         posterior_mean = (
-            self._extract(self.posterior_mean_coef1, t, x_t.shape) * x_start
-            + self._extract(self.posterior_mean_coef2, t, x_t.shape) * x_t
+            self._extract(self.posterior_mean_coef1, t) * x_start
+            + self._extract(self.posterior_mean_coef2, t) * x_t
         )
-        posterior_variance = self._extract(self.posterior_variance, t, x_t.shape)
+        posterior_variance = self._extract(self.posterior_variance, t)
         posterior_log_variance_clipped = self._extract(
-            self.posterior_log_variance_clipped, t, x_t.shape
+            self.posterior_log_variance_clipped, t
         )
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
     # compute x_0 from x_t and pred noise: the reverse of `q_sample`
-    def predict_start_from_noise(self, x_t, t, noise):
+    def predict_start_from_noise(self, x_t: Tensor, t: Tensor, noise: Tensor) -> Tensor:
         return (
-            self._extract(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t
-            - self._extract(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * noise
+            self._extract(self.sqrt_recip_alphas_cumprod, t) * x_t
+            - self._extract(self.sqrt_recipm1_alphas_cumprod, t) * noise
         )
 
     # compute predicted mean and variance of p(x_{t-1} | x_t)
-    def p_mean_variance(self, model, x_t, t, y, x_mask, clip_denoised=True):
+    def p_mean_variance(
+        self, model: DiT, x_t: Tensor, t: Tensor, y: Tensor, x_mask: Tensor
+    ) -> Tuple[Tensor, Tensor, Tensor]:
         # predict noise using model
-        pred_noise = model(x_t, t, y, x_mask)
+        pred_noise = model.forward(x_t, t, y, x_mask)
         # get the predicted x_0: different from the algorithm2 in the paper
         x_recon = self.predict_start_from_noise(x_t, t.reshape(-1), pred_noise)
-        if clip_denoised:
-            x_recon = torch.clamp(x_recon, min=-1.0, max=1.0)
-        (
-            model_mean,
-            posterior_variance,
-            posterior_log_variance,
-        ) = self.q_posterior_mean_variance(x_recon, x_t, t.reshape(-1))
-        return model_mean, posterior_variance, posterior_log_variance
+        x_recon = torch.clamp(x_recon, min=-1.0, max=1.0)
+        return self.q_posterior_mean_variance(x_recon, x_t, t.reshape(-1))
 
     # denoise_step: sample x_{t-1} from x_t and pred_noise
-    @torch.no_grad()
-    def p_sample(self, model, x_t, t, y, x_mask, clip_denoised=True):
+    def p_sample(
+        self, model: DiT, x_t: Tensor, t: Tensor, y: Tensor, x_mask: Tensor
+    ) -> Tensor:
         # predict mean and variance
         model_mean, _, model_log_variance = self.p_mean_variance(
-            model, x_t, t, y, x_mask, clip_denoised=clip_denoised
+            model, x_t, t, y, x_mask
         )
         noise = torch.randn_like(x_t)
         # no noise when t == 0
-        nonzero_mask = (t != 0).float().view(-1, *([1] * (len(x_t.shape) - 1)))
+        nonzero_mask = (t != 0).float().view(-1, 1, 1)
         # compute x_{t-1}
         pred_x = model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise
         return pred_x
 
     # denoise: reverse diffusion
-    @torch.no_grad()
-    def sample(self, model, x, x_mask, y, progress_bar: bool = True):
+    def sample(self, model: DiT, x: Tensor, x_mask: Tensor, y: Tensor) -> Tensor:
         # start from pure noise
-        if not progress_bar:
-            tqdm = lambda x, **_: x
-        else:
-            tqdm = PB
-        for i in tqdm(
-            reversed(range(0, self.timesteps)), desc="sampling", total=self.timesteps
-        ):
-            x = self.p_sample(model, x, torch.tensor([[i]], device=x.device), y, x_mask)
+        for i in self.reversed_t_range:
+            x = self.p_sample(model, x, i.view(1, 1).to(x.device), y, x_mask)
         return x
 
     # compute train losses
-    def train_losses(self, model, x_start, t, y, x_mask):
+    def train_losses(
+        self, model: DiT, x_start: Tensor, t: Tensor, y: Tensor, x_mask: Tensor
+    ) -> Tensor:
         # generate random noise
         noise = torch.randn_like(x_start) * x_mask
         # get x_t
         x_noisy = self.q_sample(x_start, t.reshape(-1), noise)
-        predicted_noise = model(x_noisy, t, y, x_mask)
+        predicted_noise = model.forward(x_noisy, t, y, x_mask)
         loss = (noise - predicted_noise).pow(2).sum()
         return loss / x_mask.repeat(1, 1, x_start.shape[-1]).sum()
 

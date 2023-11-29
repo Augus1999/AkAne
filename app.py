@@ -5,39 +5,35 @@ Web UI
 """
 import math
 import argparse
-from pathlib import Path
 from rdkit.Chem import Draw, MolFromSmiles
 from mol2chemfigPy3 import mol2chemfig
 import gradio as gr
 import torch
-from torch.jit import script
-from akane2.representation import Kamome, AkAne
 from akane2.utils.graph import smiles2graph, gather
 from akane2.utils.token import protein2vec
 
-ptk = Path(__file__).parent / "model_kamome"
-pta = Path(__file__).parent / "model_akane"
+chkpt = "torchscript_model"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model1 = script(Kamome().pretrained(ptk / "moleculenet/esol.pt").eval().to(device))
-model2 = script(Kamome(num_head=2).pretrained(ptk / "moleculenet/freesolv.pt").eval().to(device))
-model3 = script(Kamome().pretrained(ptk / "moleculenet/lipo.pt").eval().to(device))
-model4 = script(Kamome().pretrained(ptk / "qm9/qm9_homo.pt").eval().to(device))
-model5 = script(Kamome().pretrained(ptk / "qm9/qm9_lumo.pt").eval().to(device))
-model6 = script(Kamome().pretrained(ptk / "qm9/qm9_gap.pt").eval().to(device))
-model7 = script(Kamome().pretrained(ptk / "qm9/qm9_zpve.pt").eval().to(device))
-model8 = script(Kamome().pretrained(ptk / "qm9/qm9_u0.pt").eval().to(device))
-model9 = script(Kamome().pretrained(ptk / "qm9/qm9_u.pt").eval().to(device))
-model10 = script(Kamome().pretrained(ptk / "qm9/qm9_g.pt").eval().to(device))
-model11 = script(Kamome().pretrained(ptk / "qm9/qm9_h.pt").eval().to(device))
-model12 = script(Kamome().pretrained(ptk / "qm9/qm9_cv.pt").eval().to(device))
-model13 = script(Kamome().pretrained(ptk / "photoswitch/e_iso_n.pt").eval().to(device))
-model14 = script(Kamome().pretrained(ptk / "photoswitch/e_iso_pi.pt").eval().to(device))
-model15 = script(Kamome().pretrained(ptk / "photoswitch/z_iso_n.pt").eval().to(device))
-model16 = script(Kamome().pretrained(ptk / "photoswitch/z_iso_pi.pt").eval().to(device))
+model1 = torch.jit.load(f"{chkpt}/moleculenet/esol.pt").eval().to(device)
+model2 = torch.jit.load(f"{chkpt}/moleculenet/freesolv.pt").eval().to(device)
+model3 = torch.jit.load(f"{chkpt}/moleculenet/lipo.pt").eval().to(device)
+model4 = torch.jit.load(f"{chkpt}/qm9/qm9_homo.pt").eval().to(device)
+model5 = torch.jit.load(f"{chkpt}/qm9/qm9_lumo.pt").eval().to(device)
+model6 = torch.jit.load(f"{chkpt}/qm9/qm9_gap.pt").eval().to(device)
+model7 = torch.jit.load(f"{chkpt}/qm9/qm9_zpve.pt").eval().to(device)
+model8 = torch.jit.load(f"{chkpt}/qm9/qm9_u0.pt").eval().to(device)
+model9 = torch.jit.load(f"{chkpt}/qm9/qm9_u.pt").eval().to(device)
+model10 = torch.jit.load(f"{chkpt}/qm9/qm9_g.pt").eval().to(device)
+model11 = torch.jit.load(f"{chkpt}/qm9/qm9_h.pt").eval().to(device)
+model12 = torch.jit.load(f"{chkpt}/qm9/qm9_cv.pt").eval().to(device)
+model13 = torch.jit.load(f"{chkpt}/photoswitch/e_iso_n.pt").eval().to(device)
+model14 = torch.jit.load(f"{chkpt}/photoswitch/e_iso_pi.pt").eval().to(device)
+model15 = torch.jit.load(f"{chkpt}/photoswitch/z_iso_n.pt").eval().to(device)
+model16 = torch.jit.load(f"{chkpt}/photoswitch/z_iso_pi.pt").eval().to(device)
 
-model17 = AkAne(label_mode="text:23").pretrained(pta / "bind_generate.pt").eval().to(device)
-model18 = AkAne(label_mode="value:2").pretrained(pta / "des_generate.pt").eval().to(device)
+model17 = torch.jit.load(f"{chkpt}/protein_ligand.pt").eval().to(device)
+model18 = torch.jit.load(f"{chkpt}/deep_eutectic_solvent.pt").eval().to(device)
 
 
 def _count_iso(mol):
@@ -67,8 +63,7 @@ def process0(smiles: str):
     mol = gather([smiles2graph(smiles)])
     mol["node"] = mol["node"].to(device)
     mol["edge"] = mol["edge"].to(device)
-    v1 = model1(mol)["prediction"].item()
-    v1 = math.pow(10, v1)
+    v1 = math.pow(10, model1(mol)["prediction"].item())
     v2 = model2(mol)["prediction"].item()
     v3 = model3(mol)["prediction"].item()
     v4 = model4(mol)["prediction"].item()
@@ -100,7 +95,7 @@ def process1(size, file):
     fasta = data[1]
     label = torch.tensor([protein2vec(fasta)], device=device)
     while True:
-        smiles = model17.generate(int(size), label, False)
+        smiles = model17.generate(int(size), label)
         mol = MolFromSmiles(smiles["SMILES"])
         if mol != None:
             break
@@ -114,7 +109,7 @@ def process1(size, file):
 def process2(size, x, mp):
     label = torch.tensor([[float(x), float(mp)]], device=device)
     while True:
-        smiles = model18.generate(int(size), label, False)
+        smiles = model18.generate(int(size), label)
         mol = MolFromSmiles(smiles["SMILES"])
         if mol != None:
             break

@@ -3,7 +3,8 @@
 """
 Model representation
 """
-from typing import Dict
+from copy import deepcopy
+from typing import Dict, List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -53,6 +54,7 @@ class AkAne(nn.Module):
         self.readout = Readout(channel, n_readout, num_task)
         self.dit = DiT(channel, n_diffuse, num_head, temperature_coeff, label_mode)
         self.diffusion_method = GaussianDiffusion()
+        self.vocab_key = deepcopy(VOCAB_KEYS)  # required by TorchScript
 
     def autoencoder_train_step(
         self, mol: Dict[str, Tensor], token_input: Tensor, token_label: Tensor
@@ -90,9 +92,8 @@ class AkAne(nn.Module):
         h, _ = self.encoder(mol, True)
         y = self.readout(h)
         label_mask = (label != torch.inf).float()  # find the unlabelled position(s)
-        label = label.masked_fill(
-            label == torch.inf, 0
-        )  # masked the unlabelled position(s)
+        # masked the unlabelled position(s)
+        label = label.masked_fill(label == torch.inf, 0)
         return F.mse_loss(y * label_mask, label, reduction="mean")
 
     def classify_train_step(self, mol: Dict[str, Tensor], label: Tensor) -> Tensor:
@@ -128,7 +129,7 @@ class AkAne(nn.Module):
         loss = self.diffusion_method.train_losses(self.dit, h, time, label, mask)
         return loss
 
-    @torch.no_grad()
+    @torch.jit.export
     def inference(self, mol: Dict[str, Tensor]) -> Dict[str, Tensor]:
         """
         Predict properties from the graph(s) of molecule(s).
@@ -169,24 +170,21 @@ class AkAne(nn.Module):
             s = VOCAB_KEYS[last_out.detach().item()]
             smiles.append(s)
 
-    @torch.no_grad()
-    def generate(
-        self, size: int, label: Tensor, progress_bar: bool = True
-    ) -> Dict[str, str]:
+    @torch.jit.export
+    def generate(self, size: int, label: Tensor) -> Dict[str, str]:
         """
         Generate molecule(s) from noise.
 
         :param size: traget number of atoms in the molecule(s)
         :param label: labels values;  shape: (1, n_l)
-        :param progress_bar: whether to show the progress bar
         :return: {"SMILES": SMILES string}
         """
-        h_noisy = torch.randn(1, size, self.decoder.position.d, device=label.device)
-        m = torch.ones(1, size, 1, device=label.device)
-        h = self.diffusion_method.sample(self.dit, h_noisy, m, label, progress_bar)
+        h_noisy = torch.randn((1, size, self.decoder.position.d), device=label.device)
+        m = torch.ones((1, size, 1), device=label.device)
+        h = self.diffusion_method.sample(self.dit, h_noisy, m, label)
         # <start> token
         token = torch.tensor([[1]], dtype=torch.long, device=h.device)
-        smiles = []
+        smiles: List[str] = []
         while True:
             out, _ = self.decoder(token, h.clone(), m)
             out = nn.functional.softmax(out, dim=-1)
@@ -195,8 +193,9 @@ class AkAne(nn.Module):
             if last_out == 2:  # <esc> token
                 return {"SMILES": "".join(smiles)}
             token = torch.cat([token, last_out.reshape(1, 1)], dim=-1)
-            s = VOCAB_KEYS[last_out.detach().item()]
+            s = self.vocab_key[last_out.detach().item()]
             smiles.append(s)
+        return {"SMILES": "".join(smiles)}  # required by TorchScript
 
     def pretrained(self, file: str) -> nn.Module:
         """

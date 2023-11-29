@@ -6,12 +6,18 @@
 ![torch](https://img.shields.io/badge/torch-2.0-blue?color=708ddd)
 ![black](https://img.shields.io/badge/code%20style-black-black)
 
+Proudly made in <img src="image/uos_blue.png" alt="University of Southampton" width="100"/>.
+
+<img src="image/model_scheme.png" alt="model scheme" width="600"/>
+
 ## Web APP
-Run `$ python app.py` to launch the web app locally.
+First download the compiled models (`torchscript_model.7z`) from the [release](https://github.com/Augus1999/AkAne/releases) and extract the folder `torchscript_model` to the same directory of `app.py`. Then you can run `$ python app.py` to launch the web app locally.
 
 A demo is being hosted on [hugging face Spaces](https://huggingface.co/spaces/suenoomozawa/AkAne).
 
 ## Trained models
+We provide pre-trained autoencoder, prediction models trained on MoleculeNet benchmark (including ESOL, FreeSolv, Lipo, BBBP, BACE, ClinTox, HIV), QM9, PhotoSwitch, AqSolDB, CMC value dataset, and an arange deep eutectic solvents (DES) properties, and 2 generation models that generate protein ligands and DES pairs, respectively.
+
 You can download trained models from the [release](https://github.com/Augus1999/AkAne/releases).
 
 ## Dataset format
@@ -31,3 +37,6 @@ and
 smiles,smiles,ratio,value,value
 ```
 are both okey.
+
+## Known issue
+You cannot compile 2 or more AkAne models (i.e., `akane2.representation.AkAne`) into TorchScript modules together in one file. We recommend to save the compiled models before hand and load by `torch.jit.load(...)`.
