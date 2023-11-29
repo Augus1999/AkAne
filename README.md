@@ -16,7 +16,7 @@ First download the compiled models (`torchscript_model.7z`) from the [release](h
 A demo is being hosted on [hugging face Spaces](https://huggingface.co/spaces/suenoomozawa/AkAne).
 
 ## Trained models
-We provide pre-trained autoencoder, prediction models trained on MoleculeNet benchmark (including ESOL, FreeSolv, Lipo, BBBP, BACE, ClinTox, HIV), QM9, PhotoSwitch, AqSolDB, CMC value dataset, and an arange deep eutectic solvents (DES) properties, and 2 generation models that generate protein ligands and DES pairs, respectively.
+We provide pre-trained autoencoder, prediction models trained on MoleculeNet benchmark (including ESOL, FreeSolv, Lipo, BBBP, BACE, ClinTox, HIV), QM9, PhotoSwitch, AqSolDB, CMC value dataset, and a range of deep eutectic solvents (DES) properties, and 2 generation models that generate protein ligands and DES pairs, respectively.
 
 You can download trained models from the [release](https://github.com/Augus1999/AkAne/releases).
 
