@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Author: Nianze A. Tao (Omozawa Sueno)
 """
-Akane package
+Akane package (TorchScript supported)
 """
 from . import representation, utils
 
