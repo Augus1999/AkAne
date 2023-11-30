@@ -46,7 +46,11 @@ class AkAne(nn.Module):
         :param n_readout: number of read-out layers
         :param n_diffuse: number of DiT layers
         :param num_task: number of task output
-        :param label_mode: label mode chosen from 'value:x', 'class:x' and 'text:x'
+        :param label_mode: label mode chosen from 'value:x', 'class:x' and 'text:x',
+                           where x is the `maximal length` of label, e.g.,
+                           if the label is consisted of 5 numbers, then 'value:5'
+                           if the label is 3 classes, then 'class:3'
+                           if the label is text-like with a vocabulary of 45 unique words, then 'text:45'
         """
         super().__init__()
         self.encoder = Encoder(channel, n_encoder, num_head, temperature_coeff)
@@ -167,7 +171,7 @@ class AkAne(nn.Module):
             if last_out == 2:  # <esc> token
                 return {"SMILES": "".join(smiles)}
             token = torch.cat([token, last_out.reshape(1, 1)], dim=-1)
-            s = VOCAB_KEYS[last_out.detach().item()]
+            s = self.vocab_key[last_out.detach().item()]
             smiles.append(s)
 
     @torch.jit.export

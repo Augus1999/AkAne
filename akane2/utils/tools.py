@@ -8,7 +8,7 @@ import re
 import glob
 import logging
 from pathlib import Path
-from typing import Optional, List, Dict, Generator
+from typing import Optional, List, Dict, Iterable
 import torch
 import torch.nn as nn
 import torch.optim as op
@@ -17,6 +17,13 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 from sklearn.metrics import roc_auc_score, auc, precision_recall_curve
 from .graph import gather
+
+# set 'num_workers' varibale in torch.utils.data.DataLoader
+os.environ["NUM_WORKER"] = "4"
+if hasattr(os, "sched_getaffinity"):
+    os.environ["NUM_WORKER"] = f"{len(os.sched_getaffinity(0))}"
+# set inference batch-size
+os.environ["INFERENCE_BATCH_SIZE"] = "20"
 
 
 def collate(batch: List) -> Dict[str, Tensor]:
@@ -52,7 +59,7 @@ def collate(batch: List) -> Dict[str, Tensor]:
 
 def train(
     model: nn.Module,
-    data: Generator,
+    data: Iterable,
     mode: str = "predict",
     n_epochs: int = 800,
     batch_size: int = 5,
@@ -94,7 +101,7 @@ def train(
         batch_size=batch_size,
         shuffle=True,
         collate_fn=collate,
-        num_workers=2,
+        num_workers=int(os.environ["NUM_WORKER"]),
     )
     train_size = len(loader)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -209,7 +216,7 @@ def train(
 @torch.no_grad()
 def test(
     model: nn.Module,
-    data: Generator,
+    data: Iterable,
     mode: str = "regression",
     load: Optional[str] = None,
     log_dir: Optional[str] = None,
@@ -230,7 +237,9 @@ def test(
         level=logging.DEBUG,
     )
     data_size = len(data)
-    loader = DataLoader(dataset=data, batch_size=20, collate_fn=collate)
+    loader = DataLoader(
+        data, int(os.environ["INFERENCE_BATCH_SIZE"]), collate_fn=collate
+    )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f"using hardware {device}")
     logging.info(f"loaded {data_size} data in the dataset")
