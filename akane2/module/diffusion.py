@@ -110,7 +110,7 @@ class Attention(nn.Module):
     def forward(self, x: Tensor, mask: Tensor) -> Tensor:
         """
         :param x: input tensor;       shape: (n_b, n_a, n_f)
-        :param mask: attention mask;  shape: (1, n_b, n_a, n_l, 1)
+        :param mask: attention mask;  shape: (1, n_b, n_a, n_a)
         :return: attentioned output;  shape: (n_b, n_a, n_f)
         """
         xshape = x.shape
@@ -128,6 +128,13 @@ class DiTBlock(nn.Module):
     def __init__(
         self, channel: int = 512, num_head: int = 8, temperature_coeff: float = 2.0
     ) -> None:
+        """
+        DiT block.
+
+        :param channel: hidden layer features
+        :param num_head: number of heads
+        :param temperature_coeff: attention temperature coefficient
+        """
         super().__init__()
         self.norm1 = nn.LayerNorm(channel, elementwise_affine=False, eps=1e-6)
         self.attention = Attention(channel, num_head, temperature_coeff)
@@ -143,6 +150,13 @@ class DiTBlock(nn.Module):
         nn.init.constant_(self.adaLN_modulation[-1].bias, 0)
 
     def forward(self, x: Tensor, c: Tensor, mask: Tensor, x_mask: Tensor) -> Tensor:
+        """
+        :param x: input tensor;            shape: (n_b, n_a, n_f)
+        :param c: conditioning;            shape: (n_b, 1, n_f)
+        :param mask: attention mask;       shape: (1, n_b, n_a, n_a)
+        :param x_mask: input tensor mask;  shape: (n_b, n_a, 1)
+        :return: output tensor;            shape: (n_b, n_a, n_f)
+        """
         c = self.adaLN_modulation(c)
         shift_msa, scale_msa, gate_msa, shift_ffn, scale_ffn, gate_ffn = c.chunk(6, -1)
         x = x + gate_msa * self.attention(
@@ -172,6 +186,11 @@ class FinalLayer(nn.Module):
         nn.init.constant_(self.adaLN_modulation[-1].bias, 0)
 
     def forward(self, x: Tensor, c: Tensor) -> Tensor:
+        """
+        :param x: input tensor;        shape: (n_b, n_a, n_f)
+        :param c: conditioning;        shape: (n_b, 1, n_f)
+        :return: final output tensor;  shape: (n_b, n_a, n_f)
+        """
         shift, scale = self.adaLN_modulation(c).chunk(2, dim=-1)
         x = modulate(self.norm_final(x), shift, scale)
         x = self.linear(x)
@@ -213,6 +232,13 @@ class DiT(nn.Module):
         self.ffn = FinalLayer(channel)
 
     def forward(self, x: Tensor, time: Tensor, label: Tensor, x_mask: Tensor) -> Tensor:
+        """
+        :param x: input noisy tensor;      shape: (n_b, n_a, n_f)
+        :param time: time indix;           shape: (n_b, 1)
+        :param label: conditioning label;  shape: (n_b, n_l)
+        :param x_mask: input tensor mask;  shape: (n_b, n_a, 1)
+        :return: denoised tensor;          shape: (n_b, n_a, n_f)
+        """
         lemb = self.label(label)
         temb = self.time(time)
         c = lemb + temb
@@ -227,6 +253,11 @@ class DiT(nn.Module):
 
 class GaussianDiffusion(nn.Module):
     def __init__(self, timesteps: int = 1000) -> None:
+        """
+        Define Gaussian diffusion method.
+
+        :param timessteps: diffusion steps
+        """
         super().__init__()
         self.timesteps = timesteps
         self.betas = self.linear_beta_schedule()
@@ -268,41 +299,73 @@ class GaussianDiffusion(nn.Module):
 
     def linear_beta_schedule(self) -> Tensor:
         """
-        compute betas
+        compute betas.
+
+        :return: beta parameter values;  shape: (timesteps,)
         """
         scale = 1000 / self.timesteps
         beta_start = scale * 0.0001
         beta_end = scale * 0.02
         return torch.linspace(beta_start, beta_end, self.timesteps, dtype=torch.float32)
 
-    # get the param of given timestep t
     def _extract(self, a: Tensor, t: Tensor) -> Tensor:
+        """
+        get the param of the given timestep t.
+
+        :param a: parameters;     shape: (timesteps,)
+        :param t: time indices;   shape: (n_b, 1)
+        :return: parameter at t;  shape: (n_b, 1, 1)
+        """
         batch_size = t.shape[0]
         out = a.to(t.device).gather(0, t).float()
         out = out.reshape(batch_size, 1, 1)
         return out
 
-    # forward diffusion (using the nice property): q(x_t | x_0)
     def q_sample(self, x_start: Tensor, t: Tensor, noise: Tensor) -> Tensor:
+        """
+        forward diffusion (using the nice property): q(x_t | x_0).
+
+        :param x_state: initial latent vectors;          shape: (n_b, n_a, n_f)
+        :param t: time indices;                          shape: (n_b, 1)
+        :param noise: random noise;                      shape: (n_b, n_a, n_f)
+        :return: diffused latent vectors at timestep t;  shape: (n_b, n_a, n_f)
+        """
         sqrt_alphas_cumprod_t = self._extract(self.sqrt_alphas_cumprod, t)
         sqrt_one_minus_alphas_cumprod_t = self._extract(
             self.sqrt_one_minus_alphas_cumprod, t
         )
         return sqrt_alphas_cumprod_t * x_start + sqrt_one_minus_alphas_cumprod_t * noise
 
-    # Get the mean and variance of q(x_t | x_0).
     def q_mean_variance(
         self, x_start: Tensor, t: Tensor
     ) -> Tuple[Tensor, Tensor, Tensor]:
+        """
+        compute the mean and variance of q(x_t | x_0).
+
+        :param x_start: initial latent vectors;  shape: (n_b, n_a, n_f)
+        :param t: time indices;                  shape: (n_b, 1)
+        :return: mean;                           shape: (n_b, n_a, n_f)
+                 variance;                       shape: (n_b, 1, 1)
+                 ln(variance);                   shape: (n_b, 1, 1)
+        """
         mean = self._extract(self.sqrt_alphas_cumprod, t) * x_start
         variance = self._extract(1.0 - self.alphas_cumprod, t)
         log_variance = self._extract(self.log_one_minus_alphas_cumprod, t)
         return mean, variance, log_variance
 
-    # Compute the mean and variance of the diffusion posterior: q(x_{t-1} | x_t, x_0)
     def q_posterior_mean_variance(
         self, x_start: Tensor, x_t: Tensor, t: Tensor
     ) -> Tuple[Tensor, Tensor, Tensor]:
+        """
+        compute the mean and variance of the diffusion posterior: q(x_{t-1} | x_t, x_0).
+
+        :param x_start: initial latent vectors;             shape: (n_b, n_a, n_f)
+        :param x_t: diffused latent vectors at timestep t;  shape: (n_b, n_a, n_f)
+        :param t: time indices;                             shape: (n_b, 1)
+        :return: posterior mean;                            shape: (n_b, n_a, n_f)
+                 posterior variance;                        shape: (n_b, 1, 1)
+                 posterior ln(variance);                    shape: (n_b, 1, 1)
+        """
         posterior_mean = (
             self._extract(self.posterior_mean_coef1, t) * x_start
             + self._extract(self.posterior_mean_coef2, t) * x_t
@@ -313,28 +376,55 @@ class GaussianDiffusion(nn.Module):
         )
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
-    # compute x_0 from x_t and pred noise: the reverse of `q_sample`
     def predict_start_from_noise(self, x_t: Tensor, t: Tensor, noise: Tensor) -> Tensor:
+        """
+        compute x_0 from x_t and predicted noise: the reverse of `q_sample`.
+
+        :param x_t: diffused latent vectors at timestep t;  shape: (n_b, n_a, n_f)
+        :param t: time indices;                             shape: (n_b, 1)
+        :param noise: random noise;                         shape: (n_b, n_a, n_f)
+        :return: predicted initial latent vectors;          shape: (n_b, n_a, n_f)
+        """
         return (
             self._extract(self.sqrt_recip_alphas_cumprod, t) * x_t
             - self._extract(self.sqrt_recipm1_alphas_cumprod, t) * noise
         )
 
-    # compute predicted mean and variance of p(x_{t-1} | x_t)
     def p_mean_variance(
         self, model: DiT, x_t: Tensor, t: Tensor, y: Tensor, x_mask: Tensor
     ) -> Tuple[Tensor, Tensor, Tensor]:
+        """
+        compute predicted mean and variance of p(x_{t-1} | x_t).
+
+        :param model: DiT model
+        :param x_t: diffused latent vectors at timestep t;  shape: (n_b, n_a, n_f)
+        :param t: time indices;                             shape: (n_b, 1)
+        :param y: conditioning label;                       shape: (n_b, 1, n_f)
+        :param x_mask: latent vector mask;                  shape: (n_b, n_a, 1)
+        :return: model mean;                                shape: (n_b, n_a, n_f)
+                 model variance;                            shape: (n_b, 1, 1)
+                 model ln(variance);                        shape: (n_b, 1, 1)
+        """
         # predict noise using model
         pred_noise = model.forward(x_t, t, y, x_mask)
         # get the predicted x_0: different from the algorithm2 in the paper
         x_recon = self.predict_start_from_noise(x_t, t.reshape(-1), pred_noise)
-        x_recon = torch.clamp(x_recon, min=-1.0, max=1.0)
+        x_recon = torch.clamp(x_recon, min=-1.0, max=1.0)  # clamp (important)
         return self.q_posterior_mean_variance(x_recon, x_t, t.reshape(-1))
 
-    # denoise_step: sample x_{t-1} from x_t and pred_noise
     def p_sample(
         self, model: DiT, x_t: Tensor, t: Tensor, y: Tensor, x_mask: Tensor
     ) -> Tensor:
+        """
+        denoise step: sample x_{t-1} from x_t and pred_noise.
+
+        :param model: DiT model
+        :param x_t: diffused latent vectors at timestep t;             shape: (n_b, n_a, n_f)
+        :param t: time indices;                                        shape: (n_b, 1)
+        :param y: conditioning label;                                  shape: (n_b, 1, n_f)
+        :param x_mask: latent vector mask;                             shape: (n_b, n_a, 1)
+        :return: predicted diffused latent vectors at timestep (t-1);  shape: (n_b, n_a, n_f)
+        """
         # predict mean and variance
         model_mean, _, model_log_variance = self.p_mean_variance(
             model, x_t, t, y, x_mask
@@ -346,17 +436,34 @@ class GaussianDiffusion(nn.Module):
         pred_x = model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise
         return pred_x
 
-    # denoise: reverse diffusion
     def sample(self, model: DiT, x: Tensor, x_mask: Tensor, y: Tensor) -> Tensor:
+        """
+        whole denoise process: reverse diffusion.
+
+        :param model: DiT model
+        :param x: noise;                    shape: (n_b, n_a, n_f)
+        :param x_mask: latent vector mask;  shape: (n_b, n_a, 1)
+        :param y: conditioning label;       shape: (n_b, n_l)
+        :return: denoised latent vectors;   shape: (n_b, n_a, n_f)
+        """
         # start from pure noise
         for i in self.reversed_t_range:
             x = self.p_sample(model, x, i.view(1, 1).to(x.device), y, x_mask)
         return x
 
-    # compute train losses
     def train_losses(
         self, model: DiT, x_start: Tensor, t: Tensor, y: Tensor, x_mask: Tensor
     ) -> Tensor:
+        """
+        compute training loss.
+
+        :param model: DiT model
+        :param x_start: initial latent vectors;  shape: (n_b, n_a, n_f)
+        :param t: time indices;                  shape: (n_b, 1)
+        :param y: conditioning label;            shape: (n_b, n_l)
+        :param x_mask: latent vector mask;       shape: (n_b, n_a, 1)
+        :return: training loss;                  shape: ()
+        """
         # generate random noise
         noise = torch.randn_like(x_start) * x_mask
         # get x_t
