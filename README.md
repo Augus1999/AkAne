@@ -5,6 +5,9 @@
 ![python](https://img.shields.io/badge/Python-3.9%20|%203.10-blue.svg?color=dd9b65)
 ![torch](https://img.shields.io/badge/torch-2.0-blue?color=708ddd)
 ![black](https://img.shields.io/badge/code%20style-black-black)
+[![Open in Spaces](https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-sm-dark.svg)](https://huggingface.co/spaces/suenoomozawa/AkAne)
+
+
 
 Proudly made in <img src="image/uos_blue.png" alt="University of Southampton" width="100"/>.
 
@@ -12,8 +15,6 @@ Proudly made in <img src="image/uos_blue.png" alt="University of Southampton" wi
 
 ## Web APP
 First download the compiled models (`torchscript_model.7z`) from the [release](https://github.com/Augus1999/AkAne/releases) and extract the folder `torchscript_model` to the same directory of `app.py`. Then you can run `$ python app.py` to launch the web app locally.
-
-A demo is being hosted on [hugging face Spaces](https://huggingface.co/spaces/suenoomozawa/AkAne).
 
 ## Trained models
 We provide pre-trained autoencoder, prediction models trained on MoleculeNet benchmark (including ESOL, FreeSolv, Lipo, BBBP, BACE, ClinTox, HIV), QM9, PhotoSwitch, AqSolDB, CMC value dataset, and a range of deep eutectic solvents (DES) properties, and 2 generation models that generate protein ligands and DES pairs, respectively.
@@ -40,8 +41,7 @@ are both okey.
 
 ## Training thy own model
 The following is a guide of how to train your own model.
-#### _1. Create your dataset_
-Create your own dataset(s) following the dataset format.
+#### _1. Create your dataset following the dataset format_
 #### _2. Split your dataset_
 ```python
 from akane2.utils import split_dataset
@@ -69,18 +69,21 @@ workdir = cwd / "YOUR_WORKDIR"  # the directory where checkpoints (if any) will 
 logdir = cwd / "YOUR_LOG.log"  # where to print the log (you can set it to "None")
 ```
 #### _5. Define your model_
-We provide 2 types of models (that is where _2_ comes from in the package name): `akane2.representation.AkAne` (the whole A<span style='color:#CB4154'>k</span>Ane model) and `akane2.representation.Kamome` (the indenpendent encoder part without latent space regularisation).
+We provide 2 types of models (that is where _2_ comes from in the package name): `akane2.representation.AkAne` (the whole A<span style='color:#CB4154'>k</span>Ane model) and `akane2.representation.Kamome` (the indenpendent encoder part, without latent space regularisation, directly connected with the readout block).
 * If you are only interested in property predictions or molecule classifications, we recommend to use only the encoder model:
 ```python
 from akane2.representation import Kamome
 
-model = Kamome()  #  DON'T FORGET TO SET THE IMPORTANT HYPERPARAMETERS
+num_task = 1  # number of tasks in one output, i.e., if you want to predict [HOMO, LUMO, gap] together then set `num_task = 3`
+model = Kamome(num_task=num_task)  #  DON'T FORGET TO SET OTHER IMPORTANT HYPERPARAMETERS
 ```
-* If you are going to train a generation or bidirectionary model, please use the whole model:
+* If you are going to train a generative or bidirectionary model, please use the whole model:
 ```python
 from akane2.representation import AkAne
 
-model = AkAne()  #  DON'T FORGET TO SET THE IMPORTANT HYPERPARAMETERS
+num_task = 2
+label_mode = "class:2"  # see the comments in `akane2/representation.py` about how to set a proper value
+model = AkAne(num_task=num_task, label_mode=label_mode)  #  DON'T FORGET TO SET OTHER IMPORTANT HYPERPARAMETERS
 ```
 __IMPORTANT__: Regarding to the hyperparameters (e.g., `num_task` and `label_mode`) that DEFINE the functionality of the model, please refer to the comments under each model in [representation.py](akane2/representation.py).
 #### _6. Train your model_
@@ -96,14 +99,52 @@ batch_size = 5  # define batch-size. Choose thy own value that won't cause `CUDA
 save_every = 100  # save a checkpoint every `save_every` epochs (you can set to "None")
 train(model, train_set, mode, n_epochs, batch_size, chkpt, logdir, workdir, save_every)
 ```
-You will find the weight of trained model `trained.pt` and (if any) checkpoint file(s) `state-xxxx.pth` under _workdir_. You can safely delete any checkpoint file if you don't want them.
-#### _6. Test your model (ignore this step if you are training an autoencoder or generation model)_
+You will find the weight of trained model `trained.pt` and (if any) checkpoint file(s) `state-xxxx.pth` under _workdir_. You can safely delete any checkpoint file if you don't want them. __NOTE__: In order to get a generative model, it is necessary to first train an autoencoder or finetune a pre-trained autoencoder then train the diffusion model.
+#### _7. Test your model (ignore this step if you are training an autoencoder or generation model)_
 ```python
 from akane2.utils import test
 
 os.environ["INFERENCE_BATCH_SIZE"] = "20"  # set the inference batch-size that won't cause `CUDA out of memory` error (the default value is 20 if you remove this line)
 mode = "prediction"  # testing mode based on thy model. Another choice is "classification"
 print(test(model, test_set, mode, workdir/ "train.pt", logdir))
+```
+
+## Inferencing
+Here are some examples:
+```python
+import torch
+from akane2.representation import AkAne, Kamome
+from akane2.utils.graph import smiles2graph, gather
+from akane2.utils.token import protein2vec
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+############## define the input to encoder ##############
+smiles = "FC1=CC(C(OCC)=O)=CC(F)=C1/N=N/C2=C(F)C=C(C(OCC)=O)C=C2F"
+mol = gather([smiles2graph(smiles)])  # get a molecular graph from SMILES
+mol["node"] = mol["node"].to(device)
+mol["edge"] = mol["edge"].to(device)
+
+############## define the labels to diffusion model ##############
+with open("5lqv.fasta", "r") as f:
+    fasta = f.readlines()[1]
+protein_label = torch.tensor([protein2vec(fasta)], device=device)  # get embedded vectors from FASTA
+class_label = torch.tensor([[1]], dtype=torch.long, device=device)
+
+############## load models and inference ##############
+model = torch.jit.load("torchscript_model/moleculenet/freesolv.pt").to(device)  # load a compiled Kamome model
+result = model(mol)
+print(result)
+
+model = torch.jit.load("torchscript_model/protein_ligand.pt").to(device)  # load a compiled generative AkAne model
+result = model.generate(size=20, label=protein_label)
+print(result)
+
+model = AkAne(num_task=2, label_mode="class:2").pretrained("model_akane/hiv_bidirectional.pt").to(device)  # load a bidirectional AkAne model from saved model weight
+result = model.inference(mol)
+print(result)
+result = model.generate(size=17, label=class_label)
+print(result)
 ```
 
 ## Known issue

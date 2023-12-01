@@ -169,10 +169,11 @@ class AkAne(nn.Module):
             out = torch.argmax(out, dim=-1)
             last_out = out[0][-1]
             if last_out == 2:  # <esc> token
-                return {"SMILES": "".join(smiles)}
+                break
             token = torch.cat([token, last_out.reshape(1, 1)], dim=-1)
             s = self.vocab_key[last_out.detach().item()]
             smiles.append(s)
+        return {"SMILES": "".join(smiles)}
 
     @torch.jit.export
     def generate(self, size: int, label: Tensor) -> Dict[str, str]:
@@ -195,11 +196,11 @@ class AkAne(nn.Module):
             out = torch.argmax(out, dim=-1)
             last_out = out[0][-1]
             if last_out == 2:  # <esc> token
-                return {"SMILES": "".join(smiles)}
+                break
             token = torch.cat([token, last_out.reshape(1, 1)], dim=-1)
             s = self.vocab_key[last_out.detach().item()]
             smiles.append(s)
-        return {"SMILES": "".join(smiles)}  # required by TorchScript
+        return {"SMILES": "".join(smiles)}
 
     def pretrained(self, file: str) -> nn.Module:
         """
