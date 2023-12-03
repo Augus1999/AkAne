@@ -9,7 +9,7 @@
 
 
 
-Proudly made in <img src="image/uos_blue.png" alt="University of Southampton" width="100"/>.
+Proudly made in [<img src="image/uos_blue.png" alt="University of Southampton" width="100"/>](https://www.southampton.ac.uk/about/faculties-schools-departments/school-of-chemistry) in 2023.
 
 <img src="image/model_scheme.png" alt="model scheme" width="600"/>
 
@@ -149,3 +149,16 @@ print(result)
 
 ## Known issue
 You cannot compile 2 or more AkAne models (i.e., `akane2.representation.AkAne`) into TorchScript modules together in one file. We recommend to save the compiled models before hand and load by `torch.jit.load(...)`.
+
+## Cite
+```bibtex
+@mastersthesis{AkAne2023,
+title  = {On The Way of Accurate Prediction of Complex Chemical System via General Graph Neural Networks},
+author = {Nianze Tao},
+year   = {2023},
+month  = {September},
+school = {The University of Southampton},
+type   = {Master's thesis},
+note   = {MSc Electrochemistry and Battery Technologies 2022-23},
+}
+```
