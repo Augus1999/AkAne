@@ -9,7 +9,7 @@
 
 
 
-Proudly made in [<img src="image/uos_blue.png" alt="University of Southampton" width="100"/>](https://www.southampton.ac.uk/about/faculties-schools-departments/school-of-chemistry).
+Proudly made in [<img src="image/uos_blue.png" alt="University of Southampton" width="100"/>](https://www.southampton.ac.uk/about/faculties-schools-departments/school-of-chemistry) in 2023.
 
 <img src="image/model_scheme.png" alt="model scheme" width="600"/>
 
