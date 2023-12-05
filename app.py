@@ -9,31 +9,32 @@ from rdkit.Chem import Draw, MolFromSmiles
 from mol2chemfigPy3 import mol2chemfig
 import gradio as gr
 import torch
+from torch.jit import load, freeze
 from akane2.utils.graph import smiles2graph, gather
 from akane2.utils.token import protein2vec
 
 chkpt = "torchscript_model"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model1 = torch.jit.load(f"{chkpt}/moleculenet/esol.pt").eval().to(device)
-model2 = torch.jit.load(f"{chkpt}/moleculenet/freesolv.pt").eval().to(device)
-model3 = torch.jit.load(f"{chkpt}/moleculenet/lipo.pt").eval().to(device)
-model4 = torch.jit.load(f"{chkpt}/qm9/qm9_homo.pt").eval().to(device)
-model5 = torch.jit.load(f"{chkpt}/qm9/qm9_lumo.pt").eval().to(device)
-model6 = torch.jit.load(f"{chkpt}/qm9/qm9_gap.pt").eval().to(device)
-model7 = torch.jit.load(f"{chkpt}/qm9/qm9_zpve.pt").eval().to(device)
-model8 = torch.jit.load(f"{chkpt}/qm9/qm9_u0.pt").eval().to(device)
-model9 = torch.jit.load(f"{chkpt}/qm9/qm9_u.pt").eval().to(device)
-model10 = torch.jit.load(f"{chkpt}/qm9/qm9_g.pt").eval().to(device)
-model11 = torch.jit.load(f"{chkpt}/qm9/qm9_h.pt").eval().to(device)
-model12 = torch.jit.load(f"{chkpt}/qm9/qm9_cv.pt").eval().to(device)
-model13 = torch.jit.load(f"{chkpt}/photoswitch/e_iso_n.pt").eval().to(device)
-model14 = torch.jit.load(f"{chkpt}/photoswitch/e_iso_pi.pt").eval().to(device)
-model15 = torch.jit.load(f"{chkpt}/photoswitch/z_iso_n.pt").eval().to(device)
-model16 = torch.jit.load(f"{chkpt}/photoswitch/z_iso_pi.pt").eval().to(device)
+model1 = freeze(load(f"{chkpt}/moleculenet/esol.pt").eval()).to(device)
+model2 = freeze(load(f"{chkpt}/moleculenet/freesolv.pt").eval()).to(device)
+model3 = freeze(load(f"{chkpt}/moleculenet/lipo.pt").eval()).to(device)
+model4 = freeze(load(f"{chkpt}/qm9/qm9_homo.pt").eval()).to(device)
+model5 = freeze(load(f"{chkpt}/qm9/qm9_lumo.pt").eval()).to(device)
+model6 = freeze(load(f"{chkpt}/qm9/qm9_gap.pt").eval()).to(device)
+model7 = freeze(load(f"{chkpt}/qm9/qm9_zpve.pt").eval()).to(device)
+model8 = freeze(load(f"{chkpt}/qm9/qm9_u0.pt").eval()).to(device)
+model9 = freeze(load(f"{chkpt}/qm9/qm9_u.pt").eval()).to(device)
+model10 = freeze(load(f"{chkpt}/qm9/qm9_g.pt").eval()).to(device)
+model11 = freeze(load(f"{chkpt}/qm9/qm9_h.pt").eval()).to(device)
+model12 = freeze(load(f"{chkpt}/qm9/qm9_cv.pt").eval()).to(device)
+model13 = freeze(load(f"{chkpt}/photoswitch/e_iso_n.pt").eval()).to(device)
+model14 = freeze(load(f"{chkpt}/photoswitch/e_iso_pi.pt").eval()).to(device)
+model15 = freeze(load(f"{chkpt}/photoswitch/z_iso_n.pt").eval()).to(device)
+model16 = freeze(load(f"{chkpt}/photoswitch/z_iso_pi.pt").eval()).to(device)
 
-model17 = torch.jit.load(f"{chkpt}/protein_ligand.pt").eval().to(device)
-model18 = torch.jit.load(f"{chkpt}/deep_eutectic_solvent.pt").eval().to(device)
+model17 = freeze(load(f"{chkpt}/protein_ligand.pt").eval()).to(device)
+model18 = freeze(load(f"{chkpt}/deep_eutectic_solvent.pt").eval()).to(device)
 
 
 def _count_iso(mol):
