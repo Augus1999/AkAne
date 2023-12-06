@@ -110,6 +110,18 @@ os.environ["INFERENCE_BATCH_SIZE"] = "20"  # set the inference batch-size that w
 mode = "prediction"  # testing mode based on thy model. Another choice is "classification"
 print(test(model, test_set, mode, workdir/ "train.pt", logdir))
 ```
+#### _8. Visualise the training loss (optional)_
+```python
+import matplotlib.pyplot as plt
+from akane2.utils import extract_log_info
+
+info = extract_log_info(logdir)
+plt.plot(info["epoch"], info["loss"])
+plt.xlabel("epoch")
+plt.ylabel("MSE loss")
+plt.yscale("log")
+plt.show()
+```
 
 ## Inferencing
 Here are some examples:
@@ -151,7 +163,7 @@ print(result)
 
 ## Known issue
 * You cannot compile 2 or more AkAne models (i.e., `akane2.representation.AkAne`) into TorchScript modules together in one file. We recommend to save the compiled models before hand and load by `torch.jit.load(...)`.
-* Directly loading a TorchScript model or compiling a Python model to TorchScript model via `model = torch.jit.script(model)` will $\times 10$ slow down the inference. We recommend to freeze the TorchScript model while evaluating by adding an addition line of `model = torch.jit.freeze(model.eval())` to eliminate the warmup.
+* Directly loading a TorchScript model or compiling a Python model to TorchScript model via `model = torch.jit.script(model)` will $\times 10$ slower down the inference. We recommend to freeze the TorchScript model while evaluating by adding an addition line of `model = torch.jit.freeze(model.eval())` to eliminate the warmup.
 
 ## Cite
 ```bibtex
