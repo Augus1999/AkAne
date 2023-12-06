@@ -11,6 +11,8 @@
 
 Proudly made in [<img src="image/uos_blue.png" alt="University of Southampton" width="100"/>](https://www.southampton.ac.uk/about/faculties-schools-departments/school-of-chemistry) in 2023.
 
+Presented in [The 20<sup>th</sup> Nano Bio Info Chemistry Symposium](https://nanobioinfo.chemistry.hiroshima-u.ac.jp/2023/program.html).
+
 <img src="image/model_scheme.png" alt="model scheme" width="600"/>
 
 ## Web APP
@@ -148,7 +150,8 @@ print(result)
 ```
 
 ## Known issue
-You cannot compile 2 or more AkAne models (i.e., `akane2.representation.AkAne`) into TorchScript modules together in one file. We recommend to save the compiled models before hand and load by `torch.jit.load(...)`.
+* You cannot compile 2 or more AkAne models (i.e., `akane2.representation.AkAne`) into TorchScript modules together in one file. We recommend to save the compiled models before hand and load by `torch.jit.load(...)`.
+* Directly loading a TorchScript model or compiling a Python model to TorchScript model via `model = torch.jit.script(model)` will $\times 10$ slow down the inference. We recommend to freeze the TorchScript model while evaluating by adding an addition line of `model = torch.jit.freeze(model.eval())` to eliminate the warmup.
 
 ## Cite
 ```bibtex
