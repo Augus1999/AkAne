@@ -3,13 +3,15 @@
 
 ![OS](https://img.shields.io/badge/OS-Windows%20|%20Linux%20|%20macOS-blue?color=00b166)
 ![python](https://img.shields.io/badge/Python-3.9%20|%203.10-blue.svg?color=dd9b65)
-![torch](https://img.shields.io/badge/torch-2.0-blue?color=708ddd)
+![torch](https://img.shields.io/badge/torch-2.1-blue?color=708ddd)
 ![black](https://img.shields.io/badge/code%20style-black-black)
 [![Open in Spaces](https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-sm-dark.svg)](https://huggingface.co/spaces/suenoomozawa/AkAne)
 
 
 
 Proudly made in [<img src="image/uos_blue.png" alt="University of Southampton" width="100"/>](https://www.southampton.ac.uk/about/faculties-schools-departments/school-of-chemistry) in 2023.
+
+Presented in [The 20<sup>th</sup> Nano Bio Info Chemistry Symposium](https://nanobioinfo.chemistry.hiroshima-u.ac.jp/2023/program.html).
 
 <img src="image/model_scheme.png" alt="model scheme" width="600"/>
 
@@ -108,6 +110,18 @@ os.environ["INFERENCE_BATCH_SIZE"] = "20"  # set the inference batch-size that w
 mode = "prediction"  # testing mode based on thy model. Another choice is "classification"
 print(test(model, test_set, mode, workdir/ "train.pt", logdir))
 ```
+#### _8. Visualise the training loss (optional)_
+```python
+import matplotlib.pyplot as plt
+from akane2.utils import extract_log_info
+
+info = extract_log_info(logdir)
+plt.plot(info["epoch"], info["loss"])
+plt.xlabel("epoch")
+plt.ylabel("MSE loss")
+plt.yscale("log")
+plt.show()
+```
 
 ## Inferencing
 Here are some examples:
@@ -148,7 +162,8 @@ print(result)
 ```
 
 ## Known issue
-You cannot compile 2 or more AkAne models (i.e., `akane2.representation.AkAne`) into TorchScript modules together in one file. We recommend to save the compiled models before hand and load by `torch.jit.load(...)`.
+* You cannot compile 2 or more AkAne models (i.e., `akane2.representation.AkAne`) into TorchScript modules together in one file. We recommend to save the compiled models before hand and load by `torch.jit.load(...)`.
+* Directly loading a TorchScript model or compiling a Python model to TorchScript model via `model = torch.jit.script(model)` will $\times 10$ slower down the inference. We recommend to freeze the TorchScript model while evaluating by adding an addition line of `model = torch.jit.freeze(model.eval())` to eliminate the warmup.
 
 ## Cite
 ```bibtex

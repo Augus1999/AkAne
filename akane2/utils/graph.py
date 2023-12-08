@@ -377,7 +377,7 @@ def smiles2graph(
     :param mol_sizes: whether return the length(s) of molecule(s)
     :return: {"node": nodes, "edge": edges} (& [l1, l2, ...])
     """
-    #-- NOTE: committed code is the second way to embed ratio and temperature #--
+    #-- NOTE: commented code is the second way to embed ratio and temperature #--
     sizes = []
     if isinstance(smiles, str):
         smiles = [smiles]
@@ -424,7 +424,7 @@ def gather(batch: List) -> Dict[str, Tensor]:
     :param batch: a list of data (one batch)
     :return: batched {"node": nodes, "edge": edges}
     """
-    #-- NOTE: committed code is the second way to embed ratio and temperature --
+    #-- NOTE: commented code is the second way to embed ratio and temperature --
     nodes, edges = [], []
     atom_numbers = [i["node"].shape[-2] for i in batch]
     max_n = max(atom_numbers)

@@ -84,9 +84,6 @@ def train(
     :return: None
     """
     assert mode in ("autoencoder", "predict", "classify", "diffusion")
-    if os.path.exists(str(log_dir)):
-        with open(log_dir, mode="r+", encoding="utf-8") as f:
-            f.truncate()
     if not os.path.exists(work_dir):
         os.makedirs(work_dir)
     logging.basicConfig(

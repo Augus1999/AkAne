@@ -89,7 +89,7 @@ class MultiHeadAttention(nn.Module):
         :return: attentioned output;                shape: (n_b, n_a, n_f)
                  attention matrix;                  shape: (1, n_b, n_a, n_a)
         """
-        #-- NOTE: committed code is the second way to embed ratio and temperature --
+        #-- NOTE: commented code is the second way to embed ratio and temperature --
         n_b, n_a, _ = x.shape
         q = self.q(x).view(n_b, n_a, self.nh, self.d).permute(2, 0, 1, 3).contiguous()
         k_t = self.k(x).view(n_b, n_a, self.nh, self.d).permute(2, 0, 3, 1).contiguous()
