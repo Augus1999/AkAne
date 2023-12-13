@@ -319,7 +319,7 @@ def _smiles2graph(smiles: str) -> Dict[str, Tensor]:
     Generate graph features from one SMILES string
 
     :param smiles: SMILES string
-    :return: {"node": nodes, "edge": edges};  shape: (n_a, 62) & (n_a, 30)
+    :return: {"node": nodes, "edge": edges};  shape: (n_a, 62) & (n_a, n_a, 30)
     """
     mol = Chem.MolFromSmiles(smiles)
     atoms = mol.GetAtoms()

@@ -39,7 +39,7 @@ class AkAne(nn.Module):
 
         :param n_vocab: number of vocabulary
         :param channel: number of atom basis
-        :param num_head: number of heads per self-attention block
+        :param num_head: number of heads per attention block
         :param temperature_coeff: attention temperature coefficient
         :param n_encoder: number of encoder layers
         :param n_decoder: number of decoder layers
@@ -65,8 +65,8 @@ class AkAne(nn.Module):
     ) -> Tensor:
         """
         :param mol: molecule = {
-            "node": node matrix;  shape: (n_b, n_a, n_f)
-            "edge": edge matrix;  shape: (n_b, n_a, n_a, n_f)
+            "node": node matrix;  shape: (n_b, n_a, 62)
+            "edge": edge matrix;  shape: (n_b, n_a, n_a, 30)
         }
         :param token_input: input tokens to decoder;  shape: (n_b, n_t, n_f)
         :param token_label: label tokens to compare;  shape: (n_b, n_t, n_f)
@@ -84,8 +84,8 @@ class AkAne(nn.Module):
     def predict_train_step(self, mol: Dict[str, Tensor], label: Tensor) -> Tensor:
         """
         :param mol: molecule = {
-            "node": node matrix;  shape: (n_b, n_a, n_f)
-            "edge": edge matrix;  shape: (n_b, n_a, n_a, n_f)
+            "node": node matrix;  shape: (n_b, n_a, 62)
+            "edge": edge matrix;  shape: (n_b, n_a, n_a, 30)
         }
         :param label: property label(s);  shape: (n_b, n_l)
         :return: MSE loss
@@ -103,8 +103,8 @@ class AkAne(nn.Module):
     def classify_train_step(self, mol: Dict[str, Tensor], label: Tensor) -> Tensor:
         """
         :param mol: molecule = {
-            "node": node matrix;  shape: (n_b, n_a, n_f)
-            "edge": edge matrix;  shape: (n_b, n_a, n_a, n_f)
+            "node": node matrix;  shape: (n_b, n_a, 62)
+            "edge": edge matrix;  shape: (n_b, n_a, n_a, 30)
         }
         :param label: property label(s);  shape: (n_b, 1)
         :return: MSE loss
@@ -119,8 +119,8 @@ class AkAne(nn.Module):
     def diffusion_train_step(self, mol: Dict[str, Tensor], label: Tensor) -> Tensor:
         """
         :param mol: molecule = {
-            "node": node matrix;  shape: (n_b, n_a, n_f)
-            "edge": edge matrix;  shape: (n_b, n_a, n_a, n_f)
+            "node": node matrix;  shape: (n_b, n_a, 62)
+            "edge": edge matrix;  shape: (n_b, n_a, n_a, 30)
         }
         :param label: property label(s);  shape: (n_b, n_l)
         :return: MSE loss
@@ -139,8 +139,8 @@ class AkAne(nn.Module):
         Predict properties from the graph(s) of molecule(s).
 
         :param mol: molecule = {
-            "node": node matrix;  shape: (n_b, n_a, n_f)
-            "edge": edge matrix;  shape: (n_b, n_a, n_a, n_f)
+            "node": node matrix;  shape: (n_b, n_a, 62)
+            "edge": edge matrix;  shape: (n_b, n_a, n_a, 30)
         }
         :return: {"prediction": properties}
         """
@@ -154,8 +154,8 @@ class AkAne(nn.Module):
         Translate a graph of molecule(s) to SMILES string.
 
         :param mol: molecule = {
-            "node": node matrix;  shape: (1, n_a, n_f)
-            "edge": edge matrix;  shape: (1, n_a, n_a, n_f)
+            "node": node matrix;  shape: (1, n_a, 62)
+            "edge": edge matrix;  shape: (1, n_a, n_a, 30)
         }
         :return: {"SMILES": SMILES string}
         """
@@ -272,8 +272,8 @@ class Kamome(nn.Module):
     ) -> Dict[str, Tensor]:
         """
         :param mol: molecule = {
-            "node": node matrix;  shape: (n_b, n_a, n_f)
-            "edge": edge matrix;  shape: (n_b, n_a, n_a, n_f)
+            "node": node matrix;  shape: (n_b, n_a, 62)
+            "edge": edge matrix;  shape: (n_b, n_a, n_a, 30)
         }
         :param return_adj_matrix: whether to return the attention matrices
         :param average_attn_matrix: whether to average the returned attention matrix over layers

@@ -92,7 +92,7 @@ class CrossAttention(nn.Module):
         """
         :param x: input tensor;       shape: (n_b, n_t, n_f)
         :param y: input tensor;       shape: (n_b, n_a, n_f)
-        :param mask: attention mask;  shape: (1, n_b, n_t, n_a, 1)
+        :param mask: attention mask;  shape: (1, n_b, n_t, n_a)
         :param x_mask: x mask;        shape: (n_b, n_t, 1)
         :return: attentioned output;  shape: (n_b, n_t, n_f)
         """
@@ -133,7 +133,7 @@ class DecoderLayer(nn.Module):
         """
         :param x: input tensor;                 shape: (n_b, n_t, n_f)
         :param y: input tensor;                 shape: (n_b, n_a, n_f)
-        :param ca_mask: cross-attention masks;  shape: (1, n_b, n_t, n_a, 1)
+        :param ca_mask: cross-attention masks;  shape: (1, n_b, n_t, n_a)
         :param sa_mask: self-attention mask;    shape: (1, n_b, n_a, n_a)
         :param mask: x mask;                    shape: (n_b, n_t, 1)
         :return: new node hidden state;         shape: (n_b, n_t, n_f)
