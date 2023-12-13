@@ -144,8 +144,8 @@ class Encoder(nn.Module):
     ) -> Tuple[Tensor, Tensor]:
         """
         :param mol: molecule = {
-            "node: node matrix;   shape: (n_b, n_a, n_f)
-            "edge: edge matrix;   shape: (n_b, n_a, n_a, n_f)
+            "node: node matrix;   shape: (n_b, n_a, 62)
+            "edge: edge matrix;   shape: (n_b, n_a, n_a, 30)
         }
         :param skip_kl: whether to skip latent space regularisation
         :return: encoder latent vectors;  shape: (n_b, n_a, n_f)
