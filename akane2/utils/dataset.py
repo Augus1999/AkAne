@@ -71,11 +71,10 @@ class CSVData(Dataset):
             idx = idx.tolist()
         d: List[str] = self.data[idx]
         alphas, beta = None, None
-        smiles = [d[idx] for idx in self.smiles_idx]
+        smiles = [d[i] for i in self.smiles_idx]
         smiles4vec = ".".join(smiles)
         values = [
-            float(d[idx]) if d[idx].strip() != "" else torch.inf
-            for idx in self.value_idx
+            float(d[i]) if d[i].strip() != "" else torch.inf for i in self.value_idx
         ]
         if self.label_idx:
             values = [values[i] for i in self.label_idx]
