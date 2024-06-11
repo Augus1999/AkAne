@@ -9,10 +9,12 @@ from typing import List
 
 __filedir__ = Path(__file__).parent
 with open(__filedir__ / "regex_pattern.txt", "r", encoding="utf-8") as rp:
-    regex_pattern = rp.read().strip().replace("\n", "")
-SMI_REGEX_PATTERN = f"({regex_pattern})"
+    regex_pattern = rp.read().strip().split("\n")
+SMI_REGEX_PATTERN = f"({regex_pattern[0]})"
+MASK_REGEX_PATTERN = f"({regex_pattern[1]})"
 AA_REGEX_PATTERN = r"(A|B|C|D|E|F|G|H|I|K|L|M|N|P|Q|R|S|T|V|W|Y|Z)"
 smi_regex = re.compile(SMI_REGEX_PATTERN)
+mask_regex = re.compile(MASK_REGEX_PATTERN)
 aa_regex = re.compile(AA_REGEX_PATTERN)
 with open(__filedir__ / "vocab.txt", "r", encoding="utf-8") as v:
     lines = v.read().strip()
@@ -22,6 +24,7 @@ VOCAB_DICT = dict(zip(VOCAB_KEYS, range(VOCAB_COUNT)))
 AA_KEYS = "<pad> A B C D E F G H I K L M N P Q R S T V W Y Z".split()
 AA_COUNT = len(AA_KEYS)
 AA_DICT = dict(zip(AA_KEYS, range(AA_COUNT)))
+FS_MASK = [0, 0, 0] + [0 if mask_regex.findall(i) == [] else 1 for i in VOCAB_KEYS[3:]]
 
 
 def _tokenize(text: str, regex: re.Pattern) -> List[str]:

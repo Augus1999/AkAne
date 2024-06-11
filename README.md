@@ -2,8 +2,8 @@
 
 
 ![OS](https://img.shields.io/badge/OS-Windows%20|%20Linux%20|%20macOS-blue?color=00b166)
-![python](https://img.shields.io/badge/Python-3.9%20|%203.10-blue.svg?color=dd9b65)
-![torch](https://img.shields.io/badge/torch-2.1-blue?color=708ddd)
+![python](https://img.shields.io/badge/Python-3.10%20|%203.12-blue.svg?color=dd9b65)
+![torch](https://img.shields.io/badge/torch-2.2-blue?color=708ddd)
 ![black](https://img.shields.io/badge/code%20style-black-black)
 [![Open in Spaces](https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-sm-dark.svg)](https://huggingface.co/spaces/suenoomozawa/AkAne)
 
@@ -151,13 +151,13 @@ result = model(mol)
 print(result)
 
 model = torch.jit.load("torchscript_model/protein_ligand.pt").to(device)  # load a compiled generative AkAne model
-result = model.generate(size=20, label=protein_label)
+result = model.generate(size=[1, 20, 1], label=protein_label)  # batch-size=1 mol-size=20 beam-size=1
 print(result)
 
 model = AkAne(num_task=2, label_mode="class:2").pretrained("model_akane/hiv_bidirectional.pt").to(device)  # load a bidirectional AkAne model from saved model weight
 result = model.inference(mol)
 print(result)
-result = model.generate(size=17, label=class_label)
+result = model.generate(size=[1, 17, 1], label=class_label)  # batch-size=1 mol-size=17 beam-size=1
 print(result)
 ```
 

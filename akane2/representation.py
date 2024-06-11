@@ -4,12 +4,13 @@
 Model representation
 """
 from copy import deepcopy
-from typing import Dict, List
+from typing import Optional, Dict, List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-from .utils.token import VOCAB_COUNT, VOCAB_KEYS
+from typing_extensions import Self
+from .utils.token import VOCAB_COUNT, VOCAB_KEYS, FS_MASK
 from .module.encoder import Encoder
 from .module.decoder import Decoder
 from .module.readout import Readout
@@ -59,6 +60,7 @@ class AkAne(nn.Module):
         self.dit = DiT(channel, n_diffuse, num_head, temperature_coeff, label_mode)
         self.diffusion_method = GaussianDiffusion()
         self.vocab_key = deepcopy(VOCAB_KEYS)  # required by TorchScript
+        self.fs_mask = deepcopy(FS_MASK)  # required by TorchScript
 
     def autoencoder_train_step(
         self, mol: Dict[str, Tensor], token_input: Tensor, token_label: Tensor
@@ -148,61 +150,127 @@ class AkAne(nn.Module):
         y = self.readout(h)
         return {"prediction": y}
 
-    @torch.no_grad()
-    def translate(self, mol: Dict[str, Tensor]) -> Dict[str, str]:
+    @torch.jit.export
+    def translate(
+        self, mol: Dict[str, Tensor], beam_size: int = 5
+    ) -> Dict[str, List[str]]:
         """
         Translate a graph of molecule(s) to SMILES string.
 
         :param mol: molecule = {
-            "node": node matrix;  shape: (1, n_a, 62)
-            "edge": edge matrix;  shape: (1, n_a, n_a, 30)
+            "node": node matrix;  shape: (n_b, n_a, 62)
+            "edge": edge matrix;  shape: (n_b, n_a, n_a, 30)
         }
-        :return: {"SMILES": SMILES string}
+        :param beam_size: number of beam search branch(es)
+        :return: {"SMILES": [SMILES strings]}
         """
         h, m = self.encoder(mol)
-        # <start> token
-        token = torch.tensor([[1]], dtype=torch.long, device=h.device)
-        smiles = []
-        while True:
-            out, _ = self.decoder(token, h.clone(), m)
-            out = nn.functional.softmax(out, dim=-1)
-            out = torch.argmax(out, dim=-1)
-            last_out = out[0][-1]
-            if last_out == 2:  # <esc> token
-                break
-            token = torch.cat([token, last_out.reshape(1, 1)], dim=-1)
-            s = self.vocab_key[last_out.detach().item()]
-            smiles.append(s)
-        return {"SMILES": "".join(smiles)}
+        smiles = self._beam_search(h, m, beam_size)
+        return {"SMILES": smiles}
 
     @torch.jit.export
-    def generate(self, size: int, label: Tensor) -> Dict[str, str]:
+    def generate(self, size: List[int], label: Tensor) -> Dict[str, List[str]]:
         """
         Generate molecule(s) from noise.
 
-        :param size: traget number of atoms in the molecule(s)
+        :param size: [batch-size, target number of atoms in the molecule(s), beam-size]
         :param label: labels values;  shape: (1, n_l)
-        :return: {"SMILES": SMILES string}
+        :return: {"SMILES": [SMILES strings]}
         """
-        h_noisy = torch.randn((1, size, self.decoder.position.d), device=label.device)
-        m = torch.ones((1, size, 1), device=label.device)
+        assert len(size) == 3
+        h_noisy = torch.randn(
+            (size[0], size[1], self.decoder.position.d), device=label.device
+        )
+        m = torch.ones((size[0], size[1], 1), device=label.device)
+        assert label.shape[0] == 1 or label.shape[0] == size[0]
+        if label.shape[0] == 1:
+            label = label.repeat(size[0], 1)
         h = self.diffusion_method.sample(self.dit, h_noisy, m, label)
-        # <start> token
-        token = torch.tensor([[1]], dtype=torch.long, device=h.device)
+        smiles = self._beam_search(h, m, size[2])
+        return {"SMILES": smiles}
+
+    def _greedy_search(self, y: Tensor, y_mask: Tensor) -> List[str]:
+        """
+        Greedy search until all entities meet the <esc> token.\n
+        'Greediness is good.'
+
+        :param y: node representation from encoder;  shape: (n_b, n_a, n_f)
+        :param y_mask: y mask;                       shape: (n_b, n_a, 1)
+        :return: a `list` instance containing SMILES string(s)
+        """
+        n_b = y.shape[0]
+        count = torch.zeros((n_b, 1), device=y.device)
+        token = torch.ones((n_b, 1), dtype=torch.long, device=y.device)
         smiles: List[str] = []
         while True:
-            out, _ = self.decoder(token, h.clone(), m)
-            out = nn.functional.softmax(out, dim=-1)
-            out = torch.argmax(out, dim=-1)
-            last_out = out[0][-1]
-            if last_out == 2:  # <esc> token
+            out, _ = self.decoder.forward(token, y, y_mask)
+            out = torch.argmax(F.softmax(out, -1), -1)
+            last_out = out[::, -1, None]
+            count += torch.where(last_out == 2, 1, 0)
+            if (count == 0).float().sum() == 0:
                 break
-            token = torch.cat([token, last_out.reshape(1, 1)], dim=-1)
-            s = self.vocab_key[last_out.detach().item()]
-            smiles.append(s)
-        return {"SMILES": "".join(smiles)}
+            token = torch.cat([token, last_out], -1)
+        for i in token:
+            s = "".join([self.vocab_key[j.item()] for j in i[1:]])
+            smiles.append(s.split("<esc>")[0])
+        return smiles
 
-    def pretrained(self, file: str) -> nn.Module:
+    def _beam_search(self, y: Tensor, y_mask: Tensor, beam_size: int = 5) -> List[str]:
+        """
+        Beam search until all branches meet <esc> token.
+
+        :param y: node representation from encoder;  shape: (n_b, n_a, n_f)
+        :param y_mask: y mask;                       shape: (n_b, n_a, 1)
+        :param beam_size: number of beam search branches
+        :return: a `list` instance containing SMILES string(s)
+        """
+        n_b, n_a, n_f = y.shape
+        mask = torch.tensor(self.fs_mask, device=y.device)[None, None, :]
+        token = torch.ones((n_b, 1), dtype=torch.long, device=y.device)
+        smiles: List[str] = []
+        out, _ = self.decoder.forward(token, y, y_mask)
+        out = F.softmax(out.masked_fill_(mask == 0, -torch.inf), -1)
+        n_vocab = out.shape[-1]
+        p = out.view(n_b, -1).topk(beam_size, -1)
+        last_out = p.indices.view(-1, 1)
+        prob = p.values.view(-1, 1)
+        count = torch.where(last_out == 2, 1, 0)
+        token = torch.cat([token.repeat(beam_size, 1), last_out], -1)
+        y = y[:, None, ...].repeat(1, beam_size, 1, 1).view(-1, n_a, n_f)
+        y_mask = y_mask[:, None, ...].repeat(1, beam_size, 1, 1).view(-1, n_a, 1)
+        _id = torch.arange(beam_size * n_b, dtype=torch.long, device=y.device)
+        _id = _id[:, None].repeat(1, n_vocab).flatten()
+        id: Optional[Tensor] = None
+        n = torch.arange(n_b, device=y.device)[:, None].repeat(1, beam_size) * beam_size
+        c = n.flatten() * n_vocab  # stepped residual values of last_idx
+        while True:
+            out, _ = self.decoder.forward(token, y, y_mask)
+            p = F.softmax(out, -1)[::, -1].reshape(n_b, -1).topk(beam_size, -1)
+            last_idx = p.indices.flatten()
+            if id is None:
+                id = _id[last_idx + c]
+            else:
+                # lock the batches whose branches have all met <esc> token
+                id_mask = ((count.view(n_b, -1) == 0).sum(1, True) == 0).float()
+                id_mask = id_mask.repeat(1, beam_size).flatten()
+                id = (_id[last_idx + c] * (1 - id_mask) + id * id_mask).to(torch.long)
+            token = token[id]
+            count = count[id]
+            prob = prob[id] * p.values.view(-1, 1)
+            last_out = torch.fmod(last_idx, n_vocab).view(beam_size * n_b, 1)
+            count += torch.where(last_out == 2, 1, 0)
+            if (count == 0).float().sum() == 0:
+                break
+            token = torch.cat([token, last_out], -1)
+        # sort the outputs from highest total probability to the lowest one
+        sort_idx = torch.sort(prob.view(n_b, -1), -1, True).indices
+        token = token[sort_idx + n].view(token.shape)
+        for i in token:
+            s = "".join([self.vocab_key[j.item()] for j in i[1:]])
+            smiles.append(s.split("<esc>")[0])
+        return smiles
+
+    def pretrained(self, file: str) -> Self:
         """
         Load pre-trained model.
 
@@ -313,7 +381,7 @@ class Kamome(nn.Module):
             }
         return {"prediction": y}
 
-    def pretrained(self, file: str) -> nn.Module:
+    def pretrained(self, file: str) -> Self:
         with open(file, mode="rb") as f:
             state_dict = torch.load(f, map_location="cpu")
         self.load_state_dict(state_dict=state_dict["nn"])
