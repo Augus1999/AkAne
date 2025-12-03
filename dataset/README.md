@@ -1,0 +1,1 @@
+Dataset used to pretrain the autoencoder can be downloaded from [suenoomozawa/zinc15_40m](https://huggingface.co/datasets/suenoomozawa/zinc15_40m).
